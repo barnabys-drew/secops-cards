@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the flashcard app.
 
-cards/*.md  +  srs.js  +  template.html  ->  docs/index.html (standalone, installable PWA)
+cards/*.md  +  srs.js  +  app.js  +  template.html  ->  docs/index.html (standalone, installable PWA)
                                               docs/sw.js     (content-stamped service worker)
                                               docs/manifest.webmanifest, docs/icons/*
 
@@ -13,6 +13,8 @@ Deck format (cards/NN_name.md):
     Q: question text
     A: answer text
     more answer lines, until a blank line
+    S: short correct choice        (optional: makes the card available in Quiz mode)
+    X: a plausible wrong choice    (2 to 4 of these, with S:)
 
 Everything is inlined, so the page makes no network requests and works offline.
 """
@@ -43,7 +45,7 @@ def card_id(deck_id: str, question: str) -> str:
 
 def parse_deck(deck_id: str, text: str) -> dict:
     title, desc, cards = deck_id, "", []
-    cur = None  # {"q": [...], "a": [...], "in": "q"|"a"}
+    cur = None  # {"q": [...], "a": [...], "s": str|None, "x": [...], "in": "q"|"a"|"opt"}
 
     def flush(lineno: int) -> None:
         nonlocal cur
@@ -52,7 +54,16 @@ def parse_deck(deck_id: str, text: str) -> dict:
         q, a = " ".join(cur["q"]).strip(), "\n".join(cur["a"]).strip()
         if not q or not a:
             raise DeckError(f"{deck_id}: card ending near line {lineno} needs both Q: and A:")
-        cards.append({"id": card_id(deck_id, q), "q": q, "a": a})
+        card = {"id": card_id(deck_id, q), "q": q, "a": a}
+        if cur["s"] is not None or cur["x"]:
+            short, wrong = cur["s"], cur["x"]
+            if not short or not 2 <= len(wrong) <= 4:
+                raise DeckError(f"{deck_id}: '{q[:50]}' needs S: and 2-4 X: lines for Quiz mode")
+            choices = [short, *wrong]
+            if len({c.strip().lower() for c in choices}) != len(choices):
+                raise DeckError(f"{deck_id}: '{q[:50]}' has a duplicate choice")
+            card["s"], card["x"] = short, wrong
+        cards.append(card)
         cur = None
 
     for n, line in enumerate(text.splitlines(), start=1):
@@ -62,10 +73,18 @@ def parse_deck(deck_id: str, text: str) -> dict:
             desc = line[2:].strip()
         elif line.startswith("Q:"):
             flush(n)
-            cur = {"q": [line[2:].strip()], "a": [], "in": "q"}
+            cur = {"q": [line[2:].strip()], "a": [], "s": None, "x": [], "in": "q"}
         elif line.startswith("A:") and cur is not None and cur["in"] == "q":
             cur["in"] = "a"
             cur["a"].append(line[2:].strip())
+        elif line.startswith("S:") and cur is not None and cur["in"] in ("a", "opt"):
+            cur["in"] = "opt"
+            cur["s"] = line[2:].strip()
+        elif line.startswith("X:") and cur is not None and cur["in"] in ("a", "opt"):
+            cur["in"] = "opt"
+            cur["x"].append(line[2:].strip())
+        elif cur is not None and cur["in"] == "opt" and line.strip():
+            raise DeckError(f"{deck_id}: line {n}: text after S:/X: lines (start a new card with Q:)")
         elif not line.strip():
             flush(n)
         elif cur is not None:
@@ -106,10 +125,11 @@ def main() -> None:
         sys.exit("ERROR: no decks found in cards/")
 
     template = (HERE / "template.html").read_text()
-    for token in ("__DATA__", "__SRS__"):
+    for token in ("__DATA__", "__SRS__", "__APP__"):
         if token not in template:
             sys.exit(f"ERROR: template.html is missing {token}")
     body = (template.replace("__SRS__", (HERE / "srs.js").read_text())
+            .replace("__APP__", (HERE / "app.js").read_text())
             .replace("__DATA__", json_for_script(decks)))
 
     DOCS.mkdir(exist_ok=True)
@@ -134,9 +154,11 @@ def main() -> None:
     (DOCS / ".nojekyll").write_text("")
 
     total = sum(len(d["cards"]) for d in decks)
-    print(f"decks: {len(decks)}   cards: {total}")
+    quiz = sum(1 for d in decks for c in d["cards"] if "x" in c)
+    print(f"decks: {len(decks)}   cards: {total}   quiz-ready: {quiz}")
     for d in decks:
-        print(f"  {d['id']:<16}{len(d['cards']):>4}")
+        q = sum(1 for c in d["cards"] if "x" in c)
+        print(f"  {d['id']:<16}{len(d['cards']):>4}  quiz {q:>3}")
     print(f"page : docs/index.html ({(DOCS / 'index.html').stat().st_size / 1024:.0f} KB)   cache: cards-{version}")
 
 

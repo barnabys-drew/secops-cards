@@ -14,6 +14,7 @@ function page(html, opts) {
   const d = dom.window.document;
   return { w: dom.window, d, q: (s) => d.querySelector(s), text: () => d.getElementById("app").textContent, errors };
 }
+const deckData = (pg) => pg.w.eval("DECKS");
 const store = (p) => JSON.parse(p.w.localStorage.getItem("secops-cards:v1"));
 
 // --- undo restores state exactly
@@ -96,10 +97,101 @@ p.q(".topbar .btn").click();
 [...p.d.querySelectorAll("button")].find((b) => b.textContent === "Export").click();
 const ex = JSON.parse(p.q("textarea").value);
 ok(ex.summary && Object.keys(ex.summary.decks).length === 8, "export has a summary for all 8 decks");
-ok(ex.summary.decks.owasp_llm.total === 18 && ex.summary.decks.owasp_llm.new === 15 && ex.summary.exported === today, "summary counts and date are right: " + JSON.stringify(ex.summary.decks.owasp_llm));
+const owaspTotal = deckData(p).find((d) => d.id === "owasp_llm").cards.length;
+ok(ex.summary.decks.owasp_llm.total === owaspTotal && ex.summary.decks.owasp_llm.new === owaspTotal - 3 && ex.summary.exported === today, "summary counts and date are right: " + JSON.stringify(ex.summary.decks.owasp_llm));
 ok(!("summary" in store(p)), "summary is not stored in the app's own state");
 [...p.d.querySelectorAll("button")].find((b) => b.textContent === "Import").click();
 ok(!("summary" in store(p)) && Object.keys(store(p).states).length === 3, "importing an export strips the summary and keeps progress");
+
+// ================= Quiz mode =================
+const btn = (pg, label) => [...pg.d.querySelectorAll("button")].find((b) => b.textContent === label);
+// Work out the right choice like a user would: find the card for the question on screen, compare option text.
+const plain = (t) => t.replace(/`/g, "");
+const currentCard = (pg) => pg.w.eval("DECKS").flatMap((d) => d.cards).find((c) => plain(c.q) === pg.q(".q").textContent);
+const correctIdx = (pg) => { const c = currentCard(pg); return [...pg.d.querySelectorAll(".opt .t")].findIndex((t) => t.textContent === plain(c.s)); };
+
+p = page(base);
+btn(p, "Quiz").click();
+const allCards = deckData(p).flatMap((d) => d.cards), withChoices = allCards.filter((c) => c.x).length;
+ok(withChoices < allCards.length && p.text().includes(withChoices + " questions across 8 decks"), "quiz mode counts only cards that have choices (" + withChoices + " of " + allCards.length + ")");
+ok(p.text().includes("Study 15 questions"), "quiz has its own daily new cap");
+ok(store(p).settings.mode === "quiz", "mode choice is remembered");
+p.q("#all").click();
+ok(p.d.querySelectorAll(".opt").length === 4, "four answer choices shown");
+ok(!p.q(".verdict"), "no verdict before answering");
+
+// right answer: Good, marks it, shows the explanation, Next advances
+let ci = correctIdx(p);
+p.d.querySelectorAll(".opt")[ci].click();
+ok(p.q(".verdict.ok") && p.q(".opt.right") && p.q("#next"), "correct pick shows verdict, green choice, and Next");
+ok(p.q(".opt.right .k").textContent === "✓", "correct choice is marked with a check, not just a colour");
+ok(Object.keys(store(p).quiz).length === 1 && Object.keys(store(p).states).length === 0, "progress goes to quiz, not flashcard state");
+ok(store(p).newToday.nq === 1 && store(p).newToday.n === 0, "quiz new-card counter is separate");
+p.q("#next").click();
+ok(p.text().includes("2 / 15"), "Next moves to question 2");
+
+// wrong answer: Again, requeued, counter does not advance
+const wrongIdx = [0, 1, 2, 3].find((i) => i !== correctIdx(p));
+p.d.querySelectorAll(".opt")[wrongIdx].click();
+ok(p.q(".verdict.no") && p.q(".opt.wrong") && p.q(".opt.right"), "wrong pick shows both the wrong and the right choice");
+ok(p.q(".opt.wrong .k").textContent === "✗", "wrong choice marked with a cross");
+ok([...p.d.querySelectorAll(".opt")].every((b) => b.disabled), "choices lock after answering");
+const missedId = currentCard(p).id;
+ok(store(p).quiz[missedId].lapses === 1, "wrong answer records a lapse");
+p.q("#undo").click();
+ok(!(missedId in store(p).quiz) && p.text().includes("2 / 15"), "undo removes the answer and shows the question again");
+
+// keyboard: 1-4 answers, Space goes next, and a focused Next button must not skip a question
+p = page(base); btn(p, "Quiz").click(); p.q("#all").click();
+const key = (pg, k) => pg.d.dispatchEvent(new pg.w.KeyboardEvent("keydown", { key: k, bubbles: true }));
+key(p, String(correctIdx(p) + 1));
+ok(p.q(".verdict.ok"), "key 1-4 answers");
+key(p, "2");
+ok(p.d.querySelectorAll(".opt.wrong").length === 0, "second answer key ignored after answering");
+key(p, " ");
+ok(p.text().includes("2 / 15"), "Space advances once");
+key(p, String(correctIdx(p) + 1));
+p.q("#next").focus();
+p.q("#next").dispatchEvent(new p.w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+ok(p.text().includes("2 / 15") && p.q(".verdict"), "Enter on a focused Next does not also advance (no skipped question)");
+
+// whole quiz session -> summary says correct, accuracy counts first-try only
+p = page(base); btn(p, "Quiz").click(); p.q("#all").click();
+n = 0;
+while (!p.text().includes("Session done") && n++ < 200) {
+  const idx = (n === 1) ? [0, 1, 2, 3].find((i) => i !== correctIdx(p)) : correctIdx(p);   // miss the very first one
+  p.d.querySelectorAll(".opt")[idx].click();
+  p.q("#next").click();
+}
+ok(/15 questions · 93% correct/.test(p.text()), "14 of 15 right first time => 93% correct: " + (p.text().match(/\d+% \w+/) || [])[0]);
+
+// the two modes keep separate schedules and both feed the daily counts
+const st = store(p);
+ok(Object.keys(st.quiz).length === 15 && Object.keys(st.states).length === 0, "15 quiz records, 0 flashcard records");
+btn(p, "Back to decks").click();
+btn(p, "Flashcards").click();
+ok(p.text().includes("Study 15 cards"), "flashcard mode still has its full allowance after a quiz session");
+p.q("#all").click(); p.q("#show").click(); p.q(".g3").click();
+const today2 = store(p).newToday.date;
+ok(store(p).days[today2].n === 17, "reviews from both modes add up (15 questions + 1 re-ask of the missed one + 1 flashcard): " + store(p).days[today2].n);
+btn(p, "← Back").click();
+btn(p, "Open settings").click(); btn(p, "Export").click();
+const ex2 = JSON.parse(p.q("textarea").value);
+ok(Object.keys(ex2.quiz).length === 15 && ex2.summary.decks.owasp_llm.total === deckData(p).find((d) => d.id === "owasp_llm").cards.length, "export carries quiz progress; summary stays about flashcards");
+
+// answer choices are data, not markup
+const evilQ = base.replace('"s":"Prompt Injection"', '"s":"<img src=x onerror=window.__pwn2=1> `<i>x</i>`"');
+ok(evilQ !== base, "payload injected into a quiz choice");
+p = page(evilQ); btn(p, "Quiz").click();
+for (const deckBtn of [...p.d.querySelectorAll(".deck")].slice(0, 1)) deckBtn.click();
+ok(!p.w.__pwn2 && !p.q(".opt img") && !p.q(".opt i"), "markup in a choice is inert");
+
+// old saved progress (no quiz field, old newToday shape) still loads
+const p3 = new JSDOM(base, { runScripts: "dangerously", url: "http://localhost/", pretendToBeVisual: true, beforeParse(w) {
+  w.scrollTo = () => {};
+  w.localStorage.setItem("secops-cards:v1", JSON.stringify({ states: { zz: { ease: 2.5, interval: 5, reps: 2, due: "2020-01-01", lapses: 0 } }, days: {}, settings: { newPerDay: 15 }, newToday: { date: "2020-01-01", n: 3 } }));
+} });
+ok(p3.window.document.getElementById("app").textContent.includes("SecOps Cards") && !p3.window.document.getElementById("app").textContent.includes("undefined"), "progress saved before Quiz existed loads fine");
 
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exitCode = failed ? 1 : 0;

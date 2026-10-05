@@ -25,6 +25,19 @@ class ParseDeck(unittest.TestCase):
     def test_notes_outside_cards_are_ignored(self):
         self.assertEqual(len(build.parse_deck("x", "# T\n\nsome note to self\n\nQ: q\nA: a\n")["cards"]), 1)
 
+    def test_quiz_options_parse_and_cards_without_them_stay_flashcard_only(self):
+        deck = build.parse_deck("x", "Q: one?\nA: long answer\nS: short\nX: w1\nX: w2\nX: w3\n\nQ: two?\nA: only\n")
+        self.assertEqual((deck["cards"][0]["s"], deck["cards"][0]["x"]), ("short", ["w1", "w2", "w3"]))
+        self.assertNotIn("x", deck["cards"][1])
+
+    def test_incomplete_or_duplicate_quiz_options_rejected(self):
+        for bad in ("Q: q\nA: a\nS: s\nX: only one\n",
+                    "Q: q\nA: a\nX: w1\nX: w2\n",
+                    "Q: q\nA: a\nS: same\nX: Same\nX: other\n",
+                    "Q: q\nA: a\nS: s\nX: w1\nX: w2\nstray text\n"):
+            with self.assertRaises(build.DeckError, msg=bad):
+                build.parse_deck("x", bad)
+
     def test_script_json_cannot_close_the_script_tag(self):
         self.assertNotIn("</script>", build.json_for_script({"a": "</script><b>"}))
 
