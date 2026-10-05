@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Spaced-repetition flashcards for security engineering: AI security, cloud IR, Terraform, detection engineering.">
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SecOps Cards">
+<title>SecOps Cards</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --surface: #ffffff; --surface-2: #e9edf1; --ink: #14202b; --ink-dim: #5a6a78;
+    --rule: #d3dbe2; --accent: #0b7a50; --accent-ink: #ffffff; --again: #b3261e; --hard: #8a5a00;
+    --good: #0b7a50; --easy: #1457a8; --focus: #1457a8; --code: #e9edf1;
+    --pad: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1419; --surface: #18202a; --surface-2: #212b37; --ink: #e8eef4; --ink-dim: #9aabba;
+      --rule: #2c3947; --accent: #50c88c; --accent-ink: #06210f; --again: #ff8a80; --hard: #f0b94d;
+      --good: #50c88c; --easy: #7db4ff; --focus: #7db4ff; --code: #212b37;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1419; --surface: #18202a; --surface-2: #212b37; --ink: #e8eef4; --ink-dim: #9aabba;
+    --rule: #2c3947; --accent: #50c88c; --accent-ink: #06210f; --again: #ff8a80; --hard: #f0b94d;
+    --good: #50c88c; --easy: #7db4ff; --focus: #7db4ff; --code: #212b37;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; overflow-x: hidden; background: var(--bg); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 20px var(--pad) calc(32px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 1.6rem; margin: 8px 0 2px; letter-spacing: -0.01em; }
+  h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-dim); margin: 28px 0 8px; }
+  .sub { color: var(--ink-dim); margin: 0 0 16px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .btn {
+    min-height: 48px; padding: 10px 18px; border-radius: 12px; border: 1px solid var(--rule);
+    background: var(--surface); font-weight: 600;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); width: 100%; }
+  .btn.primary[disabled] { opacity: 0.45; cursor: default; }
+  .btn.ghost { background: transparent; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 12px; }
+  .stat b { display: block; font-size: 1.5rem; line-height: 1.1; }
+  .stat span { font-size: 0.78rem; color: var(--ink-dim); }
+  .deck {
+    width: 100%; text-align: left; display: block; background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 12px; padding: 14px; margin-bottom: 10px; min-height: 48px;
+  }
+  .deck .row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .deck .t { font-weight: 650; }
+  .deck .d { color: var(--ink-dim); font-size: 0.85rem; margin: 2px 0 8px; }
+  .pill { font-size: 0.78rem; color: var(--ink-dim); white-space: nowrap; }
+  .pill b { color: var(--accent); }
+  .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .topbar .btn { min-height: 40px; padding: 6px 14px; }
+  .count { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .card {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; padding: 20px;
+    min-height: 220px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .chip { align-self: flex-start; font-size: 0.75rem; color: var(--ink-dim); border: 1px solid var(--rule); border-radius: 99px; padding: 2px 10px; }
+  .q { font-size: 1.2rem; font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .a { border-top: 1px dashed var(--rule); padding-top: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  code { background: var(--code); border-radius: 5px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+  .grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .grades button { min-height: 60px; border-radius: 12px; border: 2px solid var(--rule); background: var(--surface); font-weight: 650; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
+  .grades small { font-weight: 400; color: var(--ink-dim); font-size: 0.75rem; }
+  .g1 { border-color: var(--again) !important; color: var(--again); }
+  .g2 { border-color: var(--hard) !important; color: var(--hard); }
+  .g3 { border-color: var(--good) !important; color: var(--good); }
+  .g4 { border-color: var(--easy) !important; color: var(--easy); }
+  .hint { color: var(--ink-dim); font-size: 0.8rem; text-align: center; margin-top: 10px; }
+  .done { text-align: center; padding: 28px 8px; }
+  .done h1 { margin-bottom: 8px; }
+  textarea {
+    width: 100%; min-height: 110px; background: var(--surface); color: var(--ink); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 10px; font: 0.8rem ui-monospace, Menlo, Consolas, monospace;
+  }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+  .row2 .btn { flex: 1 1 140px; }
+  .note { color: var(--ink-dim); font-size: 0.85rem; }
+  .msg { min-height: 1.4em; color: var(--accent); font-size: 0.9rem; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main id="app"></main>
+
+<script>
+const DECKS = [{"id":"owasp_llm","title":"OWASP LLM Top 10","desc":"The 2025 list: name, number, and how to spot each one in a scenario.","cards":[{"id":"37611390bc","q":"LLM01:2025","a":"Prompt Injection. Crafted input changes the model's behavior or bypasses its instructions.\nDirect = the user types it. Indirect = it arrives inside content the model reads (web page, email, document, tool result)."},{"id":"3845e1a458","q":"LLM02:2025","a":"Sensitive Information Disclosure. The model or app leaks PII, credentials, proprietary data, or training data in its output."},{"id":"c7a6779ae8","q":"LLM03:2025","a":"Supply Chain. Compromised or tampered models, datasets, plugins, and libraries (for example a poisoned model on a public hub, or an unsafe pickle file)."},{"id":"1c66ae47e9","q":"LLM04:2025","a":"Data and Model Poisoning. Tampering with pre-training, fine-tuning, or embedding data to plant bias, backdoors, or bad behavior."},{"id":"2afd1195d1","q":"LLM05:2025","a":"Improper Output Handling. Model output passed to downstream systems without validation or encoding, leading to XSS, SQL injection, SSRF, or code execution."},{"id":"b29e0e11b7","q":"LLM06:2025","a":"Excessive Agency. The model can take damaging actions because it has too much functionality, too many permissions, or too much autonomy."},{"id":"307ab8d6df","q":"LLM07:2025","a":"System Prompt Leakage. The system prompt is exposed, and it contained things that should not be secret-dependent (credentials, access rules, internal logic)."},{"id":"d1d2bc4ff4","q":"LLM08:2025","a":"Vector and Embedding Weaknesses. RAG-specific: weak access control on the vector store, cross-tenant leakage, poisoned documents, embedding inversion."},{"id":"86cc430be8","q":"LLM09:2025","a":"Misinformation. Confident but false output (hallucination) that people or systems rely on."},{"id":"8bd3cccaf8","q":"LLM10:2025","a":"Unbounded Consumption. Uncontrolled inference use causing denial of service, runaway cost (\"denial of wallet\"), or model extraction through mass querying."},{"id":"3ab9474088","q":"A chatbot's reply is inserted into a web page without escaping and runs attacker script. Which OWASP LLM category?","a":"LLM05 Improper Output Handling. Treat model output as untrusted input to whatever consumes it."},{"id":"471d88d9e7","q":"An email-summarizing agent also has a \"delete mail\" tool it never needs. Which category, and which of the three causes?","a":"LLM06 Excessive Agency, caused by excessive functionality (a tool the task does not need). Remove the tool."},{"id":"27b338e928","q":"An internal RAG assistant shows HR documents to any employee who asks. Which category, and what is the root fix?","a":"LLM08 Vector and Embedding Weaknesses (also LLM02). Enforce the user's existing document permissions at retrieval time, not in the prompt."},{"id":"71c35984b1","q":"An attacker floods an LLM endpoint with huge requests and the victim's API bill explodes. Which category?","a":"LLM10 Unbounded Consumption. Fix with rate limits, per-user quotas, input and output size caps, and budget alerts."},{"id":"e216699656","q":"What are the three causes of Excessive Agency?","a":"Excessive functionality (tools it does not need), excessive permissions (broader access than needed), excessive autonomy (acts without human approval on high-impact actions)."},{"id":"b05b44e2a1","q":"Why is a system prompt not a security boundary?","a":"The model can be talked out of it and can leak it. Anything that must be enforced (authorization, data access, spend limits) has to be enforced in code outside the model."},{"id":"ea923762d0","q":"Direct vs indirect prompt injection: which is the bigger problem for agents, and why?","a":"Indirect. Agents read untrusted content constantly (web, mail, tickets, tool results), and the attacker never needs access to the chat box."},{"id":"391a0f2928","q":"Can prompt injection be fully prevented today?","a":"No. Reduce impact instead: least privilege for tools, separate untrusted content from instructions, filter and validate outputs, require human approval for high-risk actions, monitor and log tool calls."}]},{"id":"atlas_attack","title":"MITRE ATLAS and ATT&CK","desc":"Verify technique IDs against atlas.mitre.org and attack.mitre.org; matrices get revised.","cards":[{"id":"7a6043637c","q":"What is MITRE ATLAS?","a":"A knowledge base of adversary tactics, techniques, and real case studies against AI-enabled systems, modeled on ATT&CK. ATLAS = Adversarial Threat Landscape for AI Systems."},{"id":"501b49b03d","q":"What are the two ATLAS tactics that have no direct ATT&CK equivalent?","a":"ML Model Access (how the adversary reaches the model: API, physical, product use) and ML Attack Staging (preparing the attack: crafting adversarial data, training proxy models, backdoors)."},{"id":"f8d8705ddd","q":"ATT&CK vocabulary: tactic vs technique vs sub-technique.","a":"Tactic = the adversary's goal (the why). Technique = how they achieve it. Sub-technique = a more specific variant of the technique."},{"id":"3b651394fa","q":"List the 14 ATT&CK Enterprise tactics in order.","a":"Reconnaissance, Resource Development, Initial Access, Execution, Persistence, Privilege Escalation, Defense Evasion, Credential Access, Discovery, Lateral Movement, Collection, Command and Control, Exfiltration, Impact."},{"id":"7da615babd","q":"AML.T0051","a":"LLM Prompt Injection."},{"id":"0da616f012","q":"AML.T0043","a":"Craft Adversarial Data (inputs designed to make a model misbehave)."},{"id":"b25a3f621f","q":"AML.T0020","a":"Poison Training Data."},{"id":"33027c02d1","q":"AML.T0010","a":"ML Supply Chain Compromise."},{"id":"cc98a47b21","q":"AML.T0024","a":"Exfiltration via ML Inference API (extracting data or model information through queries)."},{"id":"12a794ae64","q":"T1078.004","a":"Valid Accounts: Cloud Accounts. Using stolen cloud credentials (the usual start of an AWS compromise)."},{"id":"034f6df769","q":"T1562.008","a":"Impair Defenses: Disable or Modify Cloud Logs (for example CloudTrail StopLogging)."},{"id":"e154d32a6e","q":"T1530","a":"Data from Cloud Storage (reading S3 or similar objects)."},{"id":"caa9a92e74","q":"T1098.001","a":"Account Manipulation: Additional Cloud Credentials (for example creating a new access key for persistence)."},{"id":"975609d520","q":"T1552.005","a":"Unsecured Credentials: Cloud Instance Metadata API (stealing role credentials from the metadata service, the classic SSRF target)."},{"id":"2d6e6a488f","q":"T1580","a":"Cloud Infrastructure Discovery (enumerating instances, buckets, roles)."},{"id":"43194eca3e","q":"T1537","a":"Transfer Data to Cloud Account (exfiltrating to an attacker-controlled account, for example sharing a snapshot)."},{"id":"9f215686cc","q":"T1496","a":"Resource Hijacking (cryptomining on stolen compute)."},{"id":"e7855d5897","q":"T1136.003","a":"Create Account: Cloud Account."},{"id":"3a2fb11d65","q":"How do you apply ATT&CK in a detection program without it turning into a coloring exercise?","a":"Pick techniques by relevant adversaries and your environment, check you have the data source, write and test detections per procedure, and measure quality (tested, alerting, tuned). One rule per technique is not coverage."}]},{"id":"agents_mcp","title":"Agents and MCP security","desc":"Trust boundaries, tool permissions, and the attacks specific to tool-calling systems.","cards":[{"id":"3146fc356c","q":"MCP roles: host, client, server.","a":"Host = the application the user runs (IDE, chat app). Client = the connector inside the host, one per server. Server = exposes tools, resources, and prompts over JSON-RPC."},{"id":"c4f0533515","q":"What do MCP servers expose?","a":"Tools (actions the model can call), resources (data it can read), and prompts (templated instructions)."},{"id":"58bfb9addd","q":"What are the two standard MCP transports?","a":"stdio (local subprocess) and Streamable HTTP (remote). Local stdio servers run with the user's privileges."},{"id":"13b031b402","q":"Tool poisoning","a":"Malicious instructions hidden in a tool's name, description, or schema. The model reads them; the user usually never sees them."},{"id":"7fe97303c6","q":"Rug pull (MCP)","a":"A server changes its tool definitions after the user approved it. Mitigation: pin or hash definitions and require re-approval on any change."},{"id":"ca13e88158","q":"Tool shadowing","a":"One server's tool description manipulates how the model uses a different, trusted server's tool."},{"id":"10e986af97","q":"Confused deputy (agents)","a":"A service with its own privileges acts for a caller without verifying that the caller may request it. Fix with per-user delegated tokens, not one shared powerful credential."},{"id":"0a1319f2dc","q":"Token passthrough: why is it an anti-pattern?","a":"The MCP server forwards a client token to a downstream API. It breaks audience binding, hides who did what, and lets a token issued for one service be abused on another. Tokens should be issued for the server itself."},{"id":"ce7fbf0b62","q":"The \"lethal trifecta\" for agents","a":"Access to private data + exposure to untrusted content + ability to communicate externally. With all three, injected instructions can exfiltrate data. Remove at least one leg."},{"id":"b89fd4f13f","q":"Treat tool results as what?","a":"Untrusted input. A tool result can carry an injection exactly as a web page can. Never let it expand the agent's permissions."},{"id":"56d31c8143","q":"Why is \"ask the user to approve every tool call\" not enough?","a":"Approval fatigue. People click through. Reserve prompts for high-impact actions and enforce limits in code."},{"id":"a947329f50","q":"Agent identity best practices (non-human identity)","a":"Each agent gets its own identity, short-lived credentials, least-privilege scopes, a named owner, and logs attributing every action to both the agent and the user it acted for."},{"id":"26b85c2e8c","q":"OAuth2 client credentials vs on-behalf-of (token exchange)","a":"Client credentials = the service acts as itself (machine-to-machine). On-behalf-of / token exchange = the service acts with a user's delegated authority. Agents acting for users should use the latter."},{"id":"0883bc5bbe","q":"What should a pre-launch security test suite for an agent cover?","a":"Injection resistance (direct and indirect), tool-permission boundary tests (can it reach what it must not), refusal of out-of-scope actions, data-leak tests, cross-user isolation, and a fixed regression set re-run on every prompt or model change."},{"id":"5a1eed47bd","q":"What do you review in an agent security review?","a":"Architecture and data flows, system prompt, tool and permission manifest (MCP definitions), authn/authz for each tool, logging and monitoring, and what happens on failure."},{"id":"3027d423f7","q":"Policy-as-code for agent tools: what does it look like?","a":"A machine-readable allowlist of tools, scopes, and data classes per agent, checked in CI (for example with OPA/Rego or Python) so a manifest change that widens access fails the build."},{"id":"a47dbea826","q":"RAG in one sentence, and its main security question","a":"Retrieve relevant documents by embedding similarity and put them in the prompt. Main question: does retrieval enforce the asking user's permissions?"},{"id":"26d56cc176","q":"Why can guardrails (classifiers, filters) not be your only control?","a":"They are probabilistic and bypassable. Pair them with deterministic controls: authorization checks, allowlists, rate limits, sandboxing."},{"id":"019a4011e6","q":"Indirect injection through logs: why does it matter for AI-assisted SOC triage?","a":"Attackers control fields in the logs and alerts that an LLM triage step reads (user agents, usernames, filenames). Those fields can carry instructions. Isolate them as data and limit what the triage agent can do."},{"id":"8f1faf5c66","q":"How do you evaluate an AI triage agent?","a":"Run it against a golden set of past alerts with analyst verdicts. Measure agreement and, above all, the false-negative rate on true positives. Re-run after every change."}]},{"id":"ai_governance","title":"AI governance and review","desc":"Frameworks, vendor reviews, inventory, and IR playbooks for AI systems.","cards":[{"id":"85c724b201","q":"NIST AI RMF 1.0: the four functions","a":"Govern (cross-cutting culture, policy, accountability), Map (context and risks), Measure (assess and track), Manage (prioritize and respond)."},{"id":"c3db18ced2","q":"NIST AI 600-1","a":"The Generative AI Profile of the AI RMF (2024): risks specific to generative AI and suggested actions."},{"id":"096b42cefb","q":"ISO/IEC 42001 vs ISO/IEC 27001","a":"42001 = AI management system (AIMS), certifiable. 27001 = information security management system (ISMS). They are complementary, not interchangeable."},{"id":"5b7fbbeccc","q":"EU AI Act risk tiers","a":"Unacceptable (banned), high-risk (strict obligations), limited risk (transparency duties), minimal risk."},{"id":"e6b776e7ce","q":"What goes in an AI acceptable use policy?","a":"Approved tools, which data classes may be used where, prohibited uses, required human review, disclosure rules, and how to request a new tool."},{"id":"ba824c400e","q":"Questions for an AI vendor or SaaS AI-feature review","a":"Is our data used for training? Retention and residency? Which model provider and subprocessors? Tenant isolation? Does the AI respect existing permissions (ACLs)? Admin controls, audit logs, injection posture, and is the AI feature in scope of their SOC 2?"},{"id":"4e5549d130","q":"The biggest hidden risk of enabling an AI feature inside a SaaS tool (a workspace assistant, for example)","a":"It can surface anything the user can technically access, exposing years of over-shared content. Fix permissions hygiene before or alongside rollout."},{"id":"4346349bce","q":"How do you discover AI use you do not know about?","a":"IdP and OAuth app grants, CASB or proxy logs, expense data, browser extensions, API-key usage and cloud billing, and code scans for AI SDK imports."},{"id":"b7e57f77b1","q":"Core elements of an AI incident response playbook","a":"Scoping (which model, prompt, data, and tools), evidence (prompts, retrieved documents, tool-call logs), containment (disable the tool or feature flag, revoke tokens, rotate credentials), eradication (fix prompt or guardrail, purge poisoned data), and lessons turned into eval cases."},{"id":"9db1b14164","q":"Structure of a security position paper on an emerging technology","a":"The problem and why now, a threat model, current controls and gaps, a recommendation with a decision needed, and how you will measure success."},{"id":"fe21410552","q":"What goes in a model risk assessment?","a":"Purpose and owner, data sources and sensitivity, expected performance, failure modes and their impact, monitoring, human oversight, and a retirement plan."},{"id":"06250794d6","q":"OAuth 2.0 vs OIDC vs SAML","a":"OAuth 2.0 = delegated authorization (access tokens). OIDC = authentication layer on top of OAuth 2.0 (ID token). SAML = XML-based federated SSO using signed assertions."},{"id":"c900a10c96","q":"What is a CASB?","a":"Cloud access security broker: gives visibility into and control over SaaS and cloud usage (shadow IT discovery, DLP, access policy)."},{"id":"c44b002d69","q":"SOC 2 Trust Services Criteria","a":"Security (required), availability, processing integrity, confidentiality, privacy."},{"id":"8faf1b2442","q":"Non-human identities in IAM","a":"Service accounts, API keys, OAuth apps, and agents. Inventory them, assign owners, scope them minimally, rotate or expire credentials, and log their actions."},{"id":"e8cf3f2e08","q":"STRIDE","a":"Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege. For AI systems, apply it at each trust boundary: user to app, app to model, model to tools, retrieval to model."},{"id":"5007f00d51","q":"What is fine-tuning's main security risk?","a":"Training data leakage (memorization of sensitive records) and poisoned or low-quality data changing model behavior. Treat the fine-tuning dataset like production data."}]},{"id":"terraform","title":"Terraform","desc":"Concepts plus the security-tooling resources you would actually deploy.","cards":[{"id":"85483d319f","q":"The core workflow commands","a":"`terraform init` (download providers and set the backend), `plan` (show the diff), `apply` (make the changes), `destroy` (remove everything managed)."},{"id":"eaabf21ac9","q":"Why use `terraform plan -out=tfplan` then `terraform apply tfplan`?","a":"Apply executes exactly the plan you reviewed, even if the infrastructure changes in between."},{"id":"8e2bf526ba","q":"What is Terraform state?","a":"The mapping between your configuration and the real resources, including their attributes. It can contain secrets in plaintext."},{"id":"3ccd32d07c","q":"How should state be stored and protected?","a":"Remote backend (for example S3) with encryption, versioning, restricted access, and state locking. Never commit state to git."},{"id":"5cfadf8951","q":"Marking a variable `sensitive = true` does what, and not what?","a":"Hides the value in CLI output. It is still stored in plaintext in state."},{"id":"4a76303916","q":"What is drift and how do you detect it?","a":"Real infrastructure differs from state or config (someone changed it by hand). `terraform plan` shows it; `plan -refresh-only` shows only drift."},{"id":"f18e422dd2","q":"`count` vs `for_each`","a":"`count` indexes resources by position, so removing a middle item shifts and recreates the rest. `for_each` keys by a stable string, so items are independent."},{"id":"ca8fc05aa7","q":"How do you bring an existing resource under Terraform management?","a":"An `import` block (or `terraform import`) plus a matching resource configuration."},{"id":"f288846289","q":"What is a module?","a":"A reusable group of resources with input variables and outputs."},{"id":"5054cbc187","q":"Data source vs resource","a":"A data source reads something that exists (read-only). A resource creates and manages it."},{"id":"23cfb86bbb","q":"Implicit vs explicit dependencies","a":"Referencing another resource's attribute creates an implicit dependency. `depends_on` is for dependencies Terraform cannot see."},{"id":"a319f8f5a5","q":"Lifecycle arguments you should know","a":"`prevent_destroy` (block deletion), `create_before_destroy` (replace safely), `ignore_changes` (ignore drift on chosen attributes)."},{"id":"68ed26940a","q":"What does `.terraform.lock.hcl` do?","a":"Pins exact provider versions and checksums. Commit it so everyone, and CI, uses the same providers."},{"id":"97d9538c67","q":"In a plan, what does `-/+` mean and why does it matter?","a":"The resource will be destroyed and recreated. Check it carefully: it can mean downtime or data loss."},{"id":"0df6e91f28","q":"The `moved` block","a":"Records that a resource was renamed or relocated so Terraform updates state instead of destroying and recreating it."},{"id":"3bee276363","q":"Terraform vs Pulumi","a":"Terraform uses HCL, a declarative DSL. Pulumi uses general-purpose languages (Python, TypeScript). Both are declarative and state-based."},{"id":"0b48a25bec","q":"Scanning Terraform for security problems","a":"Static checks (Checkov, Trivy/tfsec) on the code, and policy-as-code (OPA/Conftest, Sentinel) on the plan, for example `terraform show -json tfplan`. Run them in CI before apply."},{"id":"d1a2dff5b0","q":"Which resources make up a minimal AWS detection stack in Terraform?","a":"`aws_cloudtrail` (multi-region, log file validation, KMS), an S3 log bucket with public access block, `aws_guardduty_detector`, an EventBridge rule (`aws_cloudwatch_event_rule`) targeting an alert Lambda or SNS, and a least-privilege `aws_iam_role` for the Lambda."},{"id":"3712af97a4","q":"How should CI authenticate to AWS for Terraform?","a":"OIDC federation to a role with short-lived credentials, not long-lived access keys stored as secrets."},{"id":"4fecb8fa88","q":"Workspaces vs separate directories or accounts for environments","a":"Workspaces share one backend and config, so mistakes cross environments easily. Many teams prefer separate state per environment, ideally per account."},{"id":"8b268fe661","q":"The bootstrap problem with an S3 backend","a":"The bucket that holds state must exist before Terraform can use it. Create it with a small separate config or by hand, then migrate state in."}]},{"id":"aws_ir","title":"AWS cloud incident response","desc":"Logs, attacker behavior, containment, and evidence handling.","cards":[{"id":"5d6eb397b3","q":"The incident response phases (NIST SP 800-61)","a":"Preparation; Detection and Analysis; Containment, Eradication and Recovery; Post-Incident Activity."},{"id":"7171d0909b","q":"What does CloudTrail record, and what is off by default?","a":"AWS API activity. Management events are on; data events (S3 object-level, Lambda invoke) are off by default and cost extra."},{"id":"f93d51a1f9","q":"How far back does CloudTrail Event History go?","a":"90 days of management events. For anything longer you need a trail delivering to S3."},{"id":"68e082ee6e","q":"CloudTrail log file integrity validation","a":"Signed digest files let you prove log files were not altered or deleted after delivery."},{"id":"93e8780ed4","q":"Why keep logs in a separate security or log-archive account?","a":"A compromised workload account cannot erase the evidence if it cannot write or delete in the log account."},{"id":"3d70cce8cc","q":"AKIA vs ASIA key prefixes","a":"AKIA = long-term IAM user access key. ASIA = temporary credentials from STS (role sessions)."},{"id":"29d5e17dab","q":"First calls an attacker makes after stealing a key","a":"`sts:GetCallerIdentity`, then enumeration: `iam:ListUsers`, `ListRoles`, `ListAttachedUserPolicies`, `s3:ListBuckets`."},{"id":"438542837b","q":"API calls that signal persistence","a":"`CreateAccessKey`, `CreateUser`, `CreateLoginProfile`, `AttachUserPolicy`, `UpdateAssumeRolePolicy` (trusting an outside account), and new Lambda or EC2 backdoors."},{"id":"bb2ab3754c","q":"API calls that signal defense evasion","a":"`StopLogging`, `DeleteTrail`, `UpdateTrail`, `PutEventSelectors` (CloudTrail), and `DeleteDetector` (GuardDuty)."},{"id":"8a44813f12","q":"Contain a leaked IAM user access key. Steps in order.","a":"Scope it in CloudTrail by access key ID; deactivate (do not delete) the key; review everything it did and any persistence it created; rotate affected secrets; fix how the key leaked."},{"id":"91c48eda39","q":"Why deactivate rather than delete a compromised key?","a":"It stops use immediately but preserves the record for the investigation."},{"id":"2f3d0f111d","q":"You cannot invalidate an STS session token directly. What do you do?","a":"Attach a deny policy to the role with a condition on `aws:TokenIssueTime` (the console's \"Revoke active sessions\"), which blocks sessions issued before now."},{"id":"3e28934b90","q":"IMDSv2 vs IMDSv1","a":"IMDSv2 requires a session token obtained with a PUT request, which blunts SSRF-based theft of instance role credentials. Require IMDSv2 everywhere."},{"id":"75bb18cbf9","q":"Containing a compromised EC2 instance","a":"Isolate it with a quarantine security group (no ingress or egress), snapshot its EBS volumes, preserve memory if you can, and tag it. Do not terminate it, and think before stopping it."},{"id":"e4216c2164","q":"What does GuardDuty analyze?","a":"Foundational sources are CloudTrail management events, VPC Flow Logs, and DNS logs, with optional protection for S3 data events, EKS, RDS logins, Lambda, and malware scanning."},{"id":"b69857fd00","q":"Reading a GuardDuty finding type","a":"Format starts `ThreatPurpose:ResourceType/ThreatFamily`, for example `UnauthorizedAccess:IAMUser/...`. Severity is numeric (low, medium, high)."},{"id":"67e63fced4","q":"Typical GuardDuty to response automation path","a":"Finding -> EventBridge rule -> Lambda, SNS, or SOAR. Keep a human approval gate for destructive actions and guard against remediation loops."},{"id":"3601137694","q":"What is Security Hub for?","a":"Aggregates and normalizes findings from GuardDuty, Inspector, Macie, and others (ASFF format) and tracks compliance checks."},{"id":"a711e110fe","q":"What do SCPs do?","a":"Service control policies in AWS Organizations set the maximum permissions for accounts. They never grant access, and they do not restrict the management account."},{"id":"2152a58d99","q":"Sign of cryptomining in a stolen account","a":"`RunInstances` for large or GPU instances, often in regions you never use, plus a cost spike and GuardDuty cryptocurrency findings."},{"id":"4f9a3c3eed","q":"Root account usage: what should you expect and alert on?","a":"Almost none. Alert on any root login or API call, require MFA, and keep no access keys on root."},{"id":"be072baa3c","q":"How do you find which keys are old, unused, or lack MFA?","a":"The IAM credential report (`aws iam generate-credential-report`), and `get-access-key-last-used` for specific keys."},{"id":"e574b77897","q":"Investigating CloudTrail at scale","a":"Query logs in S3 with Athena, using partition projection to keep scans small. For a quick look use `aws cloudtrail lookup-events` (management events only, 90 days)."},{"id":"ce382381d4","q":"Why do you need pagination when calling CloudTrail from boto3?","a":"Responses return one page. Use the paginator or follow `NextToken`, or you silently miss events and your timeline is incomplete."},{"id":"4dbd680c99","q":"How do you check whether an S3 bucket is exposed?","a":"Check Block Public Access settings, the bucket policy and ACLs, and IAM Access Analyzer findings for external access. Macie can tell you what sensitive data is inside."},{"id":"cb56083220","q":"Containment vs eradication vs recovery","a":"Containment stops the spread. Eradication removes the attacker's access and artifacts. Recovery restores normal service and verifies it is clean."},{"id":"e7523e6919","q":"Evidence handling basics","a":"Preserve before you change (snapshots, log exports), hash what you collect, record who touched it and when, and work from copies."}]},{"id":"detection_siem","title":"Detection engineering and SIEM data","desc":"The detection lifecycle, schemas, data lakes, SOAR, and measuring what you built.","cards":[{"id":"90f8d7afa0","q":"Detection engineering lifecycle","a":"Hypothesis (threat or ATT&CK technique) -> confirm the data source exists -> write the rule -> test it (emulation) -> tune -> deploy -> measure -> retire or revise."},{"id":"ed228b41ad","q":"What is detection-as-code?","a":"Rules live in version control with peer review, automated tests in CI, and a deploy pipeline, just like software."},{"id":"e518e1493d","q":"Sigma, YARA, Suricata: what does each cover?","a":"Sigma = vendor-neutral log detection rules (YAML), converted to SIEM queries. YARA = patterns in files and memory. Suricata/Snort = network traffic."},{"id":"bdf01bc323","q":"Precision vs recall for detections","a":"Precision = of the alerts fired, how many were real. Recall = of the real events, how many were caught. Raising one usually lowers the other; tune to the cost of missing versus the cost of noise."},{"id":"f13268f2be","q":"The Pyramid of Pain, bottom to top","a":"Hash values, IP addresses, domain names, network/host artifacts, tools, TTPs. Detecting higher up costs the adversary more to evade."},{"id":"429206bc69","q":"What does Atomic Red Team give you?","a":"Small, scripted tests mapped to ATT&CK techniques, to check that a detection actually fires."},{"id":"e5a8186d8a","q":"Why is \"we have a rule for every technique\" not coverage?","a":"A technique has many procedures, and a rule needs a healthy data source, a test, and tuning to count. Measure tested, firing, and tuned detections, not rule counts."},{"id":"b29962817f","q":"Why monitor log source health?","a":"A detection silently fails when its logs stop arriving. Alert on silence and on volume drops."},{"id":"16ceb86145","q":"OCSF and ECS","a":"Open Cybersecurity Schema Framework and Elastic Common Schema: shared field names so one detection works across many log sources."},{"id":"e57940e03c","q":"Layers of a security data lake","a":"Raw immutable landing zone, normalized layer (for example OCSF), and curated or enriched tables for detections and investigations."},{"id":"4bf8a7476c","q":"Why Parquet for security logs in S3?","a":"Columnar and compressed, so queries scan only needed columns. Partition by date and source to cut Athena cost and time."},{"id":"76276787e7","q":"Streaming detection vs querying the lake","a":"Streaming gives low latency for urgent detections and costs more. Scheduled lake queries are cheap and suit hunting and slower detections. Most programs use both."},{"id":"42163e7304","q":"What is SOAR?","a":"Security orchestration, automation, and response: playbooks that enrich alerts, decide, act, and document, with human approval for destructive steps."},{"id":"ec771e44a4","q":"What does it mean to manage an MDR provider?","a":"You own escalation paths and SLAs, give tuning feedback, define who may take response actions, and review what they miss. They watch; you remain accountable."},{"id":"7a069a7eba","q":"SOC tiers","a":"Tier 1 triages alerts, tier 2 investigates and responds, tier 3 hunts, builds detections, and handles the hardest incidents."},{"id":"d1fb8e0a27","q":"MTTD and MTTR","a":"Mean time to detect and mean time to respond or resolve. Track them per incident type, and watch the tail, not just the mean."},{"id":"8ebf2931a8","q":"What does a good alert runbook contain?","a":"What fired and why it matters, how to verify it, enrichment to pull, common false positives, containment steps, and when to escalate."},{"id":"f6d8263a2e","q":"Where to start an AI enablement roadmap for detection and response","a":"Pick high-volume, low-risk, well-understood work first (alert summarization, enrichment, ticket drafting), measure against analyst verdicts, then expand autonomy only where the data supports it."}]},{"id":"python_security","title":"Python for security work","desc":"Beginner-friendly: the language basics, and the security traps attached to them.","cards":[{"id":"4b186febe2","q":"Why use a virtual environment?","a":"It isolates a project's dependencies (`python3 -m venv .venv`). It avoids version clashes and keeps global installs from becoming an unpinned supply chain."},{"id":"435b34bf24","q":"`with open(path) as f:` why?","a":"It closes the file for you, even if an exception occurs."},{"id":"22480fcbe2","q":"`d[\"key\"]` vs `d.get(\"key\")`","a":"Indexing raises `KeyError` if the key is missing. `.get` returns `None` (or a default you provide)."},{"id":"b47d1848b6","q":"Write a list comprehension that keeps the even numbers.","a":"`[n for n in numbers if n % 2 == 0]`"},{"id":"bc552e74ca","q":"What is `if __name__ == \"__main__\":` for?","a":"Code under it runs when the file is executed directly, not when it is imported."},{"id":"2e0f5ed608","q":"boto3 client vs resource","a":"A client mirrors the AWS API one-to-one and gets new features. A resource is an object-oriented wrapper that is no longer receiving new features. Prefer clients."},{"id":"1ecf3a3e43","q":"Why must you paginate AWS API calls?","a":"Each call returns one page. Use `client.get_paginator(\"name\")` or follow `NextToken`, otherwise you silently get partial data."},{"id":"ede2869a5a","q":"How do you catch a specific AWS error?","a":"`except botocore.exceptions.ClientError as e:` then read `e.response[\"Error\"][\"Code\"]`."},{"id":"c179045b4c","q":"Why is a bare `except:` a problem?","a":"It catches everything, including bugs and Ctrl-C, and hides failures. Catch the specific exceptions you expect."},{"id":"6304792f83","q":"`subprocess.run([\"ls\", path])` vs `subprocess.run(f\"ls {path}\", shell=True)`","a":"The list form passes arguments directly. The `shell=True` string form lets a crafted `path` inject extra commands (command injection)."},{"id":"5ea3b17500","q":"Which functions are dangerous on untrusted input?","a":"`eval`, `exec`, `pickle.load` (code execution on load), and `yaml.load` without a safe loader. Use `json.loads` and `yaml.safe_load`."},{"id":"2ecb3b0df4","q":"How do you avoid SQL injection in Python?","a":"Parameterized queries: `cur.execute(\"SELECT ... WHERE id = ?\", (user_id,))`. Never build the query with f-strings."},{"id":"6967baf7dc","q":"`random` vs `secrets`","a":"`random` is predictable and not for security. Use `secrets` for tokens and keys."},{"id":"16b2684135","q":"Where do API keys and webhook URLs belong?","a":"Environment variables or a secrets manager, never in source or git. A Slack webhook URL is a secret."},{"id":"678026262a","q":"Why does `requests.get(url)` need `timeout=`?","a":"There is no default timeout, so a stalled server can hang your script forever."},{"id":"afd47dcaaf","q":"`logging` vs `print`","a":"Logging has levels, formats, and handlers, and can go to files or a collector. Never log secrets or tokens."},{"id":"af8f800fb1","q":"`json.loads` vs `json.dumps`","a":"`loads` turns a JSON string into Python objects. `dumps` turns Python objects into a JSON string."},{"id":"3c43ddedb1","q":"Why use timezone-aware datetimes?","a":"Logs and incidents span timezones. Use `datetime.now(timezone.utc)`; naive datetimes cause wrong timelines."},{"id":"4aec768e31","q":"How do you stop path traversal when joining user input to a directory?","a":"`Path(base, user_input).resolve()` and check the result is still inside `base` (for example with `is_relative_to`)."},{"id":"1135de177f","q":"Mutable default argument trap","a":"`def f(items=[])` reuses one list across calls. Use `items=None` and create the list inside."},{"id":"fd3d7a2099","q":"What does `yield` do and why is it useful for logs?","a":"It makes a generator that produces items one at a time, so you can process huge files without loading them into memory."},{"id":"d6893db7f3","q":"Shape of an AWS Lambda handler in Python","a":"`def handler(event, context):` returning a result. Give it a least-privilege execution role and a sensible timeout."},{"id":"437d894fc5","q":"Minimal pytest test","a":"A function named `test_something()` that uses a plain `assert`, in a file named `test_*.py`. Run with `pytest`."},{"id":"a5b89850ec","q":"Type hints: do they enforce anything at runtime?","a":"No. They document intent and let tools like mypy catch errors before you run the code."},{"id":"52e276b49f","q":"How do you check your dependencies for known vulnerabilities?","a":"`pip-audit` against your requirements, and pin versions (ideally with hashes)."}]}];
+</script>
+<script>
+// Spaced-repetition scheduler (SM-2 variant). Pure functions: no DOM, no storage.
+// build.py inlines this file into the page; srs.test.js imports it under node.
+const GRADE = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 };
+const ROLLOVER_HOURS = 3; // reviews before 3am still count toward the previous day
+const MIN_EASE = 1.3;
+const MAX_EASE = 3.0;
+
+function pad(n) { return String(n).padStart(2, "0"); }
+
+function todayStr(now) {
+  const d = new Date((now || new Date()).getTime() - ROLLOVER_HOURS * 3600e3);
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+}
+
+function dayNum(s) {
+  const p = s.split("-").map(Number);
+  return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 864e5);
+}
+
+function addDays(s, n) {
+  const d = new Date(dayNum(s) * 864e5 + n * 864e5);
+  return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
+}
+
+function newState() {
+  return { ease: 2.5, interval: 0, reps: 0, due: null, lapses: 0 };
+}
+
+function clampEase(e) { return Math.min(MAX_EASE, Math.max(MIN_EASE, e)); }
+
+// Returns the next state after grading a card. `state` may be null for a new card.
+function schedule(state, grade, today) {
+  const s = Object.assign(newState(), state || {});
+  if (grade === GRADE.AGAIN) {
+    return Object.assign(s, {
+      reps: 0, interval: 0, lapses: s.lapses + 1, ease: clampEase(s.ease - 0.2), due: today,
+    });
+  }
+  const prev = s.interval;
+  s.reps += 1;
+  if (s.reps === 1) {
+    s.interval = grade === GRADE.EASY ? 3 : 1;
+  } else if (s.reps === 2) {
+    s.interval = grade === GRADE.EASY ? 6 : grade === GRADE.HARD ? 2 : 3;
+  } else if (grade === GRADE.HARD) {
+    s.interval = Math.max(prev + 1, Math.round(prev * 1.2));
+  } else if (grade === GRADE.GOOD) {
+    s.interval = Math.max(prev + 1, Math.round(prev * s.ease));
+  } else {
+    s.interval = Math.max(prev + 2, Math.round(prev * s.ease * 1.3));
+  }
+  if (grade === GRADE.HARD) s.ease = clampEase(s.ease - 0.15);
+  if (grade === GRADE.EASY) s.ease = clampEase(s.ease + 0.15);
+  s.due = addDays(today, s.interval);
+  return s;
+}
+
+function intervalLabel(days) {
+  if (days <= 0) return "again";
+  if (days < 30) return days + "d";
+  if (days < 365) return Math.round(days / 30) + "mo";
+  return (Math.round(days / 36.5) / 10) + "y";
+}
+
+function previewLabels(state, today) {
+  const out = {};
+  [GRADE.AGAIN, GRADE.HARD, GRADE.GOOD, GRADE.EASY].forEach(function (g) {
+    out[g] = intervalLabel(schedule(state, g, today).interval);
+  });
+  return out;
+}
+
+function isNew(state) { return !state || state.due === null; }
+function isDue(state, today) { return !isNew(state) && state.due <= today; }
+function isMature(state) { return !isNew(state) && state.interval >= 21; }
+
+// Due cards first (oldest due first), then up to `newLeft` unseen cards in deck order.
+function buildQueue(cards, states, today, newLeft) {
+  const due = cards.filter(function (c) { return isDue(states[c.id], today); });
+  due.sort(function (a, b) { return states[a.id].due < states[b.id].due ? -1 : states[a.id].due > states[b.id].due ? 1 : 0; });
+  const fresh = cards.filter(function (c) { return isNew(states[c.id]); }).slice(0, Math.max(0, newLeft));
+  return due.concat(fresh);
+}
+
+// Consecutive days with at least one review, ending today (or yesterday if today is empty).
+function streak(days, today) {
+  let d = (days[today] && days[today].n > 0) ? today : addDays(today, -1);
+  let n = 0;
+  while (days[d] && days[d].n > 0) { n += 1; d = addDays(d, -1); }
+  return n;
+}
+
+if (typeof module !== "undefined") {
+  module.exports = { GRADE, todayStr, dayNum, addDays, newState, schedule, intervalLabel,
+    previewLabels, isNew, isDue, isMature, buildQueue, streak };
+}
+
+</script>
+<script>
+(function () {
+  "use strict";
+  const KEY = "secops-cards:v1";
+  const app = document.getElementById("app");
+
+  // ---- storage: localStorage when available, in-memory otherwise (private windows, blocked storage)
+  let memory = null;
+  function load() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { data = memory; }
+    data = data || {};
+    data.states = data.states || {};
+    data.days = data.days || {};
+    data.settings = Object.assign({ newPerDay: 15 }, data.settings || {});
+    data.newToday = data.newToday || { date: "", n: 0 };
+    return data;
+  }
+  function save() {
+    memory = db;
+    try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { /* keep going in memory */ }
+  }
+  let db = load();
+
+  // ---- helpers
+  function el(tag, attrs, children) {
+    const n = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === "class") n.className = attrs[k];
+      else if (k.indexOf("on") === 0) n.addEventListener(k.slice(2), attrs[k]);
+      else if (k === "text") n.textContent = attrs[k];
+      else n.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    return n;
+  }
+  // Card text is data, not markup: build DOM nodes, only `backtick` spans become <code>.
+  function rich(target, text) {
+    text.split(/(`[^`]+`)/).forEach(function (part) {
+      if (part.length > 2 && part[0] === "`" && part[part.length - 1] === "`") target.appendChild(el("code", { text: part.slice(1, -1) }));
+      else if (part) target.appendChild(document.createTextNode(part));
+    });
+    return target;
+  }
+  function today() { return todayStr(); }
+  function newLeft() {
+    const t = today();
+    if (db.newToday.date !== t) db.newToday = { date: t, n: 0 };
+    return Math.max(0, db.settings.newPerDay - db.newToday.n);
+  }
+  function counts(deck) {
+    const t = today(); let due = 0, fresh = 0, mature = 0;
+    deck.cards.forEach(function (c) {
+      const s = db.states[c.id];
+      if (isNew(s)) fresh += 1; else { if (isDue(s, t)) due += 1; if (isMature(s)) mature += 1; }
+    });
+    return { due: due, fresh: fresh, mature: mature, total: deck.cards.length };
+  }
+  function render(node) { app.replaceChildren(node); window.scrollTo(0, 0); }
+
+  // ---- home
+  function home() {
+    session = null;
+    const t = today();
+    let due = 0, total = 0, mature = 0;
+    DECKS.forEach(function (d) { const c = counts(d); due += c.due; total += c.total; mature += c.mature; });
+    const reviewed = (db.days[t] && db.days[t].n) || 0;
+    const left = newLeft();
+    let freshAvail = 0;
+    DECKS.forEach(function (d) { freshAvail += counts(d).fresh; });
+    const todo = due + Math.min(left, freshAvail);
+
+    const root = el("div", {}, [
+      el("h1", { text: "SecOps Cards" }),
+      el("p", { class: "sub", text: total + " cards across " + DECKS.length + " decks" }),
+      el("div", { class: "stats" }, [
+        el("div", { class: "stat" }, [el("b", { text: String(todo) }), el("span", { text: "to study today" })]),
+        el("div", { class: "stat" }, [el("b", { text: String(streak(db.days, t)) }), el("span", { text: "day streak" })]),
+        el("div", { class: "stat" }, [el("b", { text: Math.round(100 * mature / Math.max(1, total)) + "%" }), el("span", { text: "mature (21d+)" })]),
+      ]),
+      el("button", { class: "btn primary", id: "all", text: todo ? "Study " + todo + " cards" : "All caught up", onclick: function () { startSession(DECKS); } }),
+      el("p", { class: "hint", text: reviewed + " reviewed today" }),
+      el("h2", { text: "Decks" }),
+    ]);
+    if (!todo) root.querySelector("#all").disabled = true;
+    DECKS.forEach(function (d) {
+      const c = counts(d);
+      root.appendChild(el("button", { class: "deck", onclick: function () { startSession([d]); } }, [
+        el("div", { class: "row" }, [
+          el("span", { class: "t", text: d.title }),
+          el("span", { class: "pill" }, [el("b", { text: c.due + " due" }), " · " + c.fresh + " new"]),
+        ]),
+        el("div", { class: "d", text: d.desc || (c.total + " cards") }),
+        el("div", { class: "bar" }, [el("i", { style: "width:" + Math.round(100 * c.mature / Math.max(1, c.total)) + "%" })]),
+      ]));
+    });
+    root.appendChild(el("h2", { text: "Settings & backup" }));
+    root.appendChild(el("button", { class: "btn ghost", onclick: settings, text: "Open settings" }));
+    render(root);
+  }
+
+  // ---- study session
+  let session = null;
+  function startSession(decks) {
+    const ids = new Set(); const cards = []; const deckOf = {};
+    decks.forEach(function (d) { d.cards.forEach(function (c) { cards.push(c); deckOf[c.id] = d.title; }); });
+    // Spread the daily new-card allowance across the decks being studied, in deck order.
+    let budget = newLeft(); const queue = [];
+    decks.forEach(function (d) {
+      const q = buildQueue(d.cards, db.states, today(), budget);
+      q.forEach(function (c) { if (isNew(db.states[c.id])) budget -= 1; queue.push(c); });
+    });
+    queue.forEach(function (c) { ids.add(c.id); });
+    if (!queue.length) { home(); return; }
+    session = { queue: queue, deckOf: deckOf, total: queue.length, shown: false, graded: 0, ok: 0, missed: new Set(), undo: null, multi: decks.length > 1 };
+    showCard();
+  }
+
+  function showCard() {
+    if (!session.queue.length) { finish(); return; }
+    const c = session.queue[0];
+    session.shown = false;
+    const root = el("div", {}, [
+      el("div", { class: "topbar" }, [
+        el("button", { class: "btn ghost", text: "← Back", onclick: home }),
+        el("span", { class: "count", text: Math.min(session.graded + 1, session.total) + " / " + session.total }),
+        el("button", { class: "btn ghost", id: "undo", text: "Undo", onclick: undo, hidden: "" }),
+      ]),
+      el("div", { class: "card" }, [
+        session.multi ? el("span", { class: "chip", text: session.deckOf[c.id] }) : null,
+        rich(el("div", { class: "q" }), c.q),
+        el("div", { class: "a", id: "ans", hidden: "" }),
+      ]),
+      el("div", { id: "ctl" }, [
+        el("button", { class: "btn primary", id: "show", text: "Show answer", onclick: reveal, style: "margin-top:14px" }),
+        el("p", { class: "hint", text: "Space shows the answer · 1–4 grades it" }),
+      ]),
+    ]);
+    render(root);
+    if (session.undo) root.querySelector("#undo").hidden = false;
+  }
+
+  function reveal() {
+    if (!session || session.shown) return;
+    session.shown = true;
+    const c = session.queue[0];
+    const ans = document.getElementById("ans");
+    rich(ans, c.a); ans.hidden = false;
+    const prev = previewLabels(db.states[c.id], today());
+    const names = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
+    const grades = el("div", { class: "grades" }, [1, 2, 3, 4].map(function (g) {
+      return el("button", { class: "g" + g, onclick: function () { grade(g); } }, [names[g], el("small", { text: prev[g] })]);
+    }));
+    document.getElementById("ctl").replaceChildren(grades, el("p", { class: "hint", text: "How well did you know it?" }));
+  }
+
+  function grade(g) {
+    if (!session || !session.shown) return;
+    const c = session.queue.shift();
+    const t = today();
+    const before = db.states[c.id] ? Object.assign({}, db.states[c.id]) : null;
+    const wasNew = isNew(before);
+    const day = db.days[t] || { n: 0, ok: 0 };
+    const snapshot = { card: c, before: before, wasNew: wasNew, day: Object.assign({}, day), g: g };
+    db.states[c.id] = schedule(before, g, t);
+    day.n += 1; if (g >= GRADE.HARD) day.ok += 1;
+    db.days[t] = day;
+    if (wasNew) { newLeft(); db.newToday.n += 1; }
+    snapshot.requeued = g === GRADE.AGAIN;
+    snapshot.addedMissed = false; snapshot.countedOk = false;
+    if (g === GRADE.AGAIN) {
+      // Show it again later this session, a few cards back so it isn't just echoed.
+      session.queue.splice(Math.min(3, session.queue.length), 0, c);
+      if (!session.missed.has(c.id)) { session.missed.add(c.id); snapshot.addedMissed = true; }
+    } else {
+      session.graded += 1;
+      // "Recalled" means passed without ever being marked Again this session.
+      if (g >= GRADE.HARD && !session.missed.has(c.id)) { session.ok += 1; snapshot.countedOk = true; }
+    }
+    session.undo = snapshot;
+    save();
+    showCard();
+  }
+
+  function undo() {
+    const u = session && session.undo;
+    if (!u) return;
+    const t = today();
+    if (u.requeued) { const i = session.queue.lastIndexOf(u.card); if (i >= 0) session.queue.splice(i, 1); }
+    else { session.graded -= 1; if (u.countedOk) session.ok -= 1; }
+    if (u.addedMissed) session.missed.delete(u.card.id);
+    if (u.before) db.states[u.card.id] = u.before; else delete db.states[u.card.id];
+    db.days[t] = u.day;
+    if (u.wasNew) db.newToday.n = Math.max(0, db.newToday.n - 1);
+    session.queue.unshift(u.card);
+    session.undo = null;
+    save();
+    showCard();
+  }
+
+  function finish() {
+    const pct = session.graded ? Math.round(100 * session.ok / session.graded) : 0;
+    const tomorrow = addDays(today(), 1);
+    let nextDue = 0;
+    Object.keys(db.states).forEach(function (id) { if (db.states[id].due === tomorrow) nextDue += 1; });
+    render(el("div", { class: "done" }, [
+      el("h1", { text: "Session done" }),
+      el("p", { text: session.graded + " cards · " + pct + "% recalled" }),
+      el("p", { class: "sub", text: nextDue + " cards come due tomorrow." }),
+      el("button", { class: "btn primary", text: "Back to decks", onclick: home }),
+    ]));
+    session = null;
+  }
+
+  // ---- settings, export/import
+  function settings() {
+    session = null;
+    const msg = el("p", { class: "msg", role: "status" });
+    const box = el("textarea", { "aria-label": "Progress backup JSON", spellcheck: "false" });
+    const num = el("input", { type: "number", min: "0", max: "100", value: String(db.settings.newPerDay), style: "width:5rem;padding:8px;border-radius:8px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);font:inherit" });
+    num.addEventListener("change", function () {
+      const v = Math.max(0, Math.min(100, parseInt(num.value, 10) || 0));
+      db.settings.newPerDay = v; num.value = String(v); save(); msg.textContent = "Saved: " + v + " new cards per day.";
+    });
+    function doExport() {
+      box.value = JSON.stringify(db);
+      box.select();
+      let copied = false;
+      try { copied = navigator.clipboard && navigator.clipboard.writeText(box.value); } catch (e) { /* fall through */ }
+      msg.textContent = copied ? "Backup copied to clipboard (also shown below)." : "Backup shown below. Select it and copy.";
+    }
+    function doImport() {
+      let data;
+      try { data = JSON.parse(box.value); } catch (e) { msg.textContent = "That is not valid JSON."; return; }
+      if (!data || typeof data !== "object" || typeof data.states !== "object") { msg.textContent = "That does not look like a backup."; return; }
+      db = Object.assign(load(), data); save(); msg.textContent = "Imported " + Object.keys(db.states).length + " card records.";
+    }
+    function doReset() {
+      if (!confirm("Erase all progress on this device? Export a backup first if unsure.")) return;
+      db = { states: {}, days: {}, settings: db.settings, newToday: { date: "", n: 0 } }; save(); msg.textContent = "Progress erased.";
+    }
+    render(el("div", {}, [
+      el("div", { class: "topbar" }, [el("button", { class: "btn ghost", text: "← Back", onclick: home }), el("span")]),
+      el("h1", { text: "Settings" }),
+      el("h2", { text: "New cards per day" }),
+      el("label", {}, [num]),
+      el("h2", { text: "Backup" }),
+      el("p", { class: "note", text: "Progress lives only in this browser. Export it to move to another device or to keep a copy; paste it into Import there." }),
+      el("div", { class: "row2" }, [
+        el("button", { class: "btn", text: "Export", onclick: doExport }),
+        el("button", { class: "btn", text: "Import", onclick: doImport }),
+        el("button", { class: "btn", text: "Reset progress", onclick: doReset }),
+      ]),
+      box, msg,
+    ]));
+  }
+
+  // ---- keyboard
+  document.addEventListener("keydown", function (e) {
+    if (!session || e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT" || e.metaKey || e.ctrlKey) return;
+    if (e.key === " " || e.key === "Enter") {
+      if (!session.shown) { e.preventDefault(); reveal(); }
+    } else if (session.shown && "1234".indexOf(e.key) >= 0 && e.key) { grade(Number(e.key)); }
+    else if (e.key === "z") { undo(); }
+    else if (e.key === "Escape") { home(); }
+  });
+
+  if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+    addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });
+  }
+  home();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Spaced-repetition flashcards for security engineering: AI security, cloud IR, Terraform, detection engineering.">
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SecOps Cards">
+<title>SecOps Cards</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --surface: #ffffff; --surface-2: #e9edf1; --ink: #14202b; --ink-dim: #5a6a78;
+    --rule: #d3dbe2; --accent: #0b7a50; --accent-ink: #ffffff; --again: #b3261e; --hard: #8a5a00;
+    --good: #0b7a50; --easy: #1457a8; --focus: #1457a8; --code: #e9edf1;
+    --pad: max(16px, env(safe-area-inset-left), env(safe-area-inset-right));
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1419; --surface: #18202a; --surface-2: #212b37; --ink: #e8eef4; --ink-dim: #9aabba;
+      --rule: #2c3947; --accent: #50c88c; --accent-ink: #06210f; --again: #ff8a80; --hard: #f0b94d;
+      --good: #50c88c; --easy: #7db4ff; --focus: #7db4ff; --code: #212b37;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1419; --surface: #18202a; --surface-2: #212b37; --ink: #e8eef4; --ink-dim: #9aabba;
+    --rule: #2c3947; --accent: #50c88c; --accent-ink: #06210f; --again: #ff8a80; --hard: #f0b94d;
+    --good: #50c88c; --easy: #7db4ff; --focus: #7db4ff; --code: #212b37;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; overflow-x: hidden; background: var(--bg); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 20px var(--pad) calc(32px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 1.6rem; margin: 8px 0 2px; letter-spacing: -0.01em; }
+  h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-dim); margin: 28px 0 8px; }
+  .sub { color: var(--ink-dim); margin: 0 0 16px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .btn {
+    min-height: 48px; padding: 10px 18px; border-radius: 12px; border: 1px solid var(--rule);
+    background: var(--surface); font-weight: 600;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); width: 100%; }
+  .btn.primary[disabled] { opacity: 0.45; cursor: default; }
+  .btn.ghost { background: transparent; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 12px; }
+  .stat b { display: block; font-size: 1.5rem; line-height: 1.1; }
+  .stat span { font-size: 0.78rem; color: var(--ink-dim); }
+  .deck {
+    width: 100%; text-align: left; display: block; background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 12px; padding: 14px; margin-bottom: 10px; min-height: 48px;
+  }
+  .deck .row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .deck .t { font-weight: 650; }
+  .deck .d { color: var(--ink-dim); font-size: 0.85rem; margin: 2px 0 8px; }
+  .pill { font-size: 0.78rem; color: var(--ink-dim); white-space: nowrap; }
+  .pill b { color: var(--accent); }
+  .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .topbar .btn { min-height: 40px; padding: 6px 14px; }
+  .count { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .card {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; padding: 20px;
+    min-height: 220px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .chip { align-self: flex-start; font-size: 0.75rem; color: var(--ink-dim); border: 1px solid var(--rule); border-radius: 99px; padding: 2px 10px; }
+  .q { font-size: 1.2rem; font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .a { border-top: 1px dashed var(--rule); padding-top: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  code { background: var(--code); border-radius: 5px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+  .grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .grades button { min-height: 60px; border-radius: 12px; border: 2px solid var(--rule); background: var(--surface); font-weight: 650; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
+  .grades small { font-weight: 400; color: var(--ink-dim); font-size: 0.75rem; }
+  .g1 { border-color: var(--again) !important; color: var(--again); }
+  .g2 { border-color: var(--hard) !important; color: var(--hard); }
+  .g3 { border-color: var(--good) !important; color: var(--good); }
+  .g4 { border-color: var(--easy) !important; color: var(--easy); }
+  .hint { color: var(--ink-dim); font-size: 0.8rem; text-align: center; margin-top: 10px; }
+  .done { text-align: center; padding: 28px 8px; }
+  .done h1 { margin-bottom: 8px; }
+  textarea {
+    width: 100%; min-height: 110px; background: var(--surface); color: var(--ink); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 10px; font: 0.8rem ui-monospace, Menlo, Consolas, monospace;
+  }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+  .row2 .btn { flex: 1 1 140px; }
+  .note { color: var(--ink-dim); font-size: 0.85rem; }
+  .msg { min-height: 1.4em; color: var(--accent); font-size: 0.9rem; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main id="app"></main>
+
+<script>
+const DECKS = __DATA__;
+</script>
+<script>
+__SRS__
+</script>
+<script>
+(function () {
+  "use strict";
+  const KEY = "secops-cards:v1";
+  const app = document.getElementById("app");
+
+  // ---- storage: localStorage when available, in-memory otherwise (private windows, blocked storage)
+  let memory = null;
+  function load() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { data = memory; }
+    data = data || {};
+    data.states = data.states || {};
+    data.days = data.days || {};
+    data.settings = Object.assign({ newPerDay: 15 }, data.settings || {});
+    data.newToday = data.newToday || { date: "", n: 0 };
+    return data;
+  }
+  function save() {
+    memory = db;
+    try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { /* keep going in memory */ }
+  }
+  let db = load();
+
+  // ---- helpers
+  function el(tag, attrs, children) {
+    const n = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === "class") n.className = attrs[k];
+      else if (k.indexOf("on") === 0) n.addEventListener(k.slice(2), attrs[k]);
+      else if (k === "text") n.textContent = attrs[k];
+      else n.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    return n;
+  }
+  // Card text is data, not markup: build DOM nodes, only `backtick` spans become <code>.
+  function rich(target, text) {
+    text.split(/(`[^`]+`)/).forEach(function (part) {
+      if (part.length > 2 && part[0] === "`" && part[part.length - 1] === "`") target.appendChild(el("code", { text: part.slice(1, -1) }));
+      else if (part) target.appendChild(document.createTextNode(part));
+    });
+    return target;
+  }
+  function today() { return todayStr(); }
+  function newLeft() {
+    const t = today();
+    if (db.newToday.date !== t) db.newToday = { date: t, n: 0 };
+    return Math.max(0, db.settings.newPerDay - db.newToday.n);
+  }
+  function counts(deck) {
+    const t = today(); let due = 0, fresh = 0, mature = 0;
+    deck.cards.forEach(function (c) {
+      const s = db.states[c.id];
+      if (isNew(s)) fresh += 1; else { if (isDue(s, t)) due += 1; if (isMature(s)) mature += 1; }
+    });
+    return { due: due, fresh: fresh, mature: mature, total: deck.cards.length };
+  }
+  function render(node) { app.replaceChildren(node); window.scrollTo(0, 0); }
+
+  // ---- home
+  function home() {
+    session = null;
+    const t = today();
+    let due = 0, total = 0, mature = 0;
+    DECKS.forEach(function (d) { const c = counts(d); due += c.due; total += c.total; mature += c.mature; });
+    const reviewed = (db.days[t] && db.days[t].n) || 0;
+    const left = newLeft();
+    let freshAvail = 0;
+    DECKS.forEach(function (d) { freshAvail += counts(d).fresh; });
+    const todo = due + Math.min(left, freshAvail);
+
+    const root = el("div", {}, [
+      el("h1", { text: "SecOps Cards" }),
+      el("p", { class: "sub", text: total + " cards across " + DECKS.length + " decks" }),
+      el("div", { class: "stats" }, [
+        el("div", { class: "stat" }, [el("b", { text: String(todo) }), el("span", { text: "to study today" })]),
+        el("div", { class: "stat" }, [el("b", { text: String(streak(db.days, t)) }), el("span", { text: "day streak" })]),
+        el("div", { class: "stat" }, [el("b", { text: Math.round(100 * mature / Math.max(1, total)) + "%" }), el("span", { text: "mature (21d+)" })]),
+      ]),
+      el("button", { class: "btn primary", id: "all", text: todo ? "Study " + todo + " cards" : "All caught up", onclick: function () { startSession(DECKS); } }),
+      el("p", { class: "hint", text: reviewed + " reviewed today" }),
+      el("h2", { text: "Decks" }),
+    ]);
+    if (!todo) root.querySelector("#all").disabled = true;
+    DECKS.forEach(function (d) {
+      const c = counts(d);
+      root.appendChild(el("button", { class: "deck", onclick: function () { startSession([d]); } }, [
+        el("div", { class: "row" }, [
+          el("span", { class: "t", text: d.title }),
+          el("span", { class: "pill" }, [el("b", { text: c.due + " due" }), " · " + c.fresh + " new"]),
+        ]),
+        el("div", { class: "d", text: d.desc || (c.total + " cards") }),
+        el("div", { class: "bar" }, [el("i", { style: "width:" + Math.round(100 * c.mature / Math.max(1, c.total)) + "%" })]),
+      ]));
+    });
+    root.appendChild(el("h2", { text: "Settings & backup" }));
+    root.appendChild(el("button", { class: "btn ghost", onclick: settings, text: "Open settings" }));
+    render(root);
+  }
+
+  // ---- study session
+  let session = null;
+  function startSession(decks) {
+    const ids = new Set(); const cards = []; const deckOf = {};
+    decks.forEach(function (d) { d.cards.forEach(function (c) { cards.push(c); deckOf[c.id] = d.title; }); });
+    // Spread the daily new-card allowance across the decks being studied, in deck order.
+    let budget = newLeft(); const queue = [];
+    decks.forEach(function (d) {
+      const q = buildQueue(d.cards, db.states, today(), budget);
+      q.forEach(function (c) { if (isNew(db.states[c.id])) budget -= 1; queue.push(c); });
+    });
+    queue.forEach(function (c) { ids.add(c.id); });
+    if (!queue.length) { home(); return; }
+    session = { queue: queue, deckOf: deckOf, total: queue.length, shown: false, graded: 0, ok: 0, missed: new Set(), undo: null, multi: decks.length > 1 };
+    showCard();
+  }
+
+  function showCard() {
+    if (!session.queue.length) { finish(); return; }
+    const c = session.queue[0];
+    session.shown = false;
+    const root = el("div", {}, [
+      el("div", { class: "topbar" }, [
+        el("button", { class: "btn ghost", text: "← Back", onclick: home }),
+        el("span", { class: "count", text: Math.min(session.graded + 1, session.total) + " / " + session.total }),
+        el("button", { class: "btn ghost", id: "undo", text: "Undo", onclick: undo, hidden: "" }),
+      ]),
+      el("div", { class: "card" }, [
+        session.multi ? el("span", { class: "chip", text: session.deckOf[c.id] }) : null,
+        rich(el("div", { class: "q" }), c.q),
+        el("div", { class: "a", id: "ans", hidden: "" }),
+      ]),
+      el("div", { id: "ctl" }, [
+        el("button", { class: "btn primary", id: "show", text: "Show answer", onclick: reveal, style: "margin-top:14px" }),
+        el("p", { class: "hint", text: "Space shows the answer · 1–4 grades it" }),
+      ]),
+    ]);
+    render(root);
+    if (session.undo) root.querySelector("#undo").hidden = false;
+  }
+
+  function reveal() {
+    if (!session || session.shown) return;
+    session.shown = true;
+    const c = session.queue[0];
+    const ans = document.getElementById("ans");
+    rich(ans, c.a); ans.hidden = false;
+    const prev = previewLabels(db.states[c.id], today());
+    const names = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
+    const grades = el("div", { class: "grades" }, [1, 2, 3, 4].map(function (g) {
+      return el("button", { class: "g" + g, onclick: function () { grade(g); } }, [names[g], el("small", { text: prev[g] })]);
+    }));
+    document.getElementById("ctl").replaceChildren(grades, el("p", { class: "hint", text: "How well did you know it?" }));
+  }
+
+  function grade(g) {
+    if (!session || !session.shown) return;
+    const c = session.queue.shift();
+    const t = today();
+    const before = db.states[c.id] ? Object.assign({}, db.states[c.id]) : null;
+    const wasNew = isNew(before);
+    const day = db.days[t] || { n: 0, ok: 0 };
+    const snapshot = { card: c, before: before, wasNew: wasNew, day: Object.assign({}, day), g: g };
+    db.states[c.id] = schedule(before, g, t);
+    day.n += 1; if (g >= GRADE.HARD) day.ok += 1;
+    db.days[t] = day;
+    if (wasNew) { newLeft(); db.newToday.n += 1; }
+    snapshot.requeued = g === GRADE.AGAIN;
+    snapshot.addedMissed = false; snapshot.countedOk = false;
+    if (g === GRADE.AGAIN) {
+      // Show it again later this session, a few cards back so it isn't just echoed.
+      session.queue.splice(Math.min(3, session.queue.length), 0, c);
+      if (!session.missed.has(c.id)) { session.missed.add(c.id); snapshot.addedMissed = true; }
+    } else {
+      session.graded += 1;
+      // "Recalled" means passed without ever being marked Again this session.
+      if (g >= GRADE.HARD && !session.missed.has(c.id)) { session.ok += 1; snapshot.countedOk = true; }
+    }
+    session.undo = snapshot;
+    save();
+    showCard();
+  }
+
+  function undo() {
+    const u = session && session.undo;
+    if (!u) return;
+    const t = today();
+    if (u.requeued) { const i = session.queue.lastIndexOf(u.card); if (i >= 0) session.queue.splice(i, 1); }
+    else { session.graded -= 1; if (u.countedOk) session.ok -= 1; }
+    if (u.addedMissed) session.missed.delete(u.card.id);
+    if (u.before) db.states[u.card.id] = u.before; else delete db.states[u.card.id];
+    db.days[t] = u.day;
+    if (u.wasNew) db.newToday.n = Math.max(0, db.newToday.n - 1);
+    session.queue.unshift(u.card);
+    session.undo = null;
+    save();
+    showCard();
+  }
+
+  function finish() {
+    const pct = session.graded ? Math.round(100 * session.ok / session.graded) : 0;
+    const tomorrow = addDays(today(), 1);
+    let nextDue = 0;
+    Object.keys(db.states).forEach(function (id) { if (db.states[id].due === tomorrow) nextDue += 1; });
+    render(el("div", { class: "done" }, [
+      el("h1", { text: "Session done" }),
+      el("p", { text: session.graded + " cards · " + pct + "% recalled" }),
+      el("p", { class: "sub", text: nextDue + " cards come due tomorrow." }),
+      el("button", { class: "btn primary", text: "Back to decks", onclick: home }),
+    ]));
+    session = null;
+  }
+
+  // ---- settings, export/import
+  function settings() {
+    session = null;
+    const msg = el("p", { class: "msg", role: "status" });
+    const box = el("textarea", { "aria-label": "Progress backup JSON", spellcheck: "false" });
+    const num = el("input", { type: "number", min: "0", max: "100", value: String(db.settings.newPerDay), style: "width:5rem;padding:8px;border-radius:8px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);font:inherit" });
+    num.addEventListener("change", function () {
+      const v = Math.max(0, Math.min(100, parseInt(num.value, 10) || 0));
+      db.settings.newPerDay = v; num.value = String(v); save(); msg.textContent = "Saved: " + v + " new cards per day.";
+    });
+    function doExport() {
+      box.value = JSON.stringify(db);
+      box.select();
+      let copied = false;
+      try { copied = navigator.clipboard && navigator.clipboard.writeText(box.value); } catch (e) { /* fall through */ }
+      msg.textContent = copied ? "Backup copied to clipboard (also shown below)." : "Backup shown below. Select it and copy.";
+    }
+    function doImport() {
+      let data;
+      try { data = JSON.parse(box.value); } catch (e) { msg.textContent = "That is not valid JSON."; return; }
+      if (!data || typeof data !== "object" || typeof data.states !== "object") { msg.textContent = "That does not look like a backup."; return; }
+      db = Object.assign(load(), data); save(); msg.textContent = "Imported " + Object.keys(db.states).length + " card records.";
+    }
+    function doReset() {
+      if (!confirm("Erase all progress on this device? Export a backup first if unsure.")) return;
+      db = { states: {}, days: {}, settings: db.settings, newToday: { date: "", n: 0 } }; save(); msg.textContent = "Progress erased.";
+    }
+    render(el("div", {}, [
+      el("div", { class: "topbar" }, [el("button", { class: "btn ghost", text: "← Back", onclick: home }), el("span")]),
+      el("h1", { text: "Settings" }),
+      el("h2", { text: "New cards per day" }),
+      el("label", {}, [num]),
+      el("h2", { text: "Backup" }),
+      el("p", { class: "note", text: "Progress lives only in this browser. Export it to move to another device or to keep a copy; paste it into Import there." }),
+      el("div", { class: "row2" }, [
+        el("button", { class: "btn", text: "Export", onclick: doExport }),
+        el("button", { class: "btn", text: "Import", onclick: doImport }),
+        el("button", { class: "btn", text: "Reset progress", onclick: doReset }),
+      ]),
+      box, msg,
+    ]));
+  }
+
+  // ---- keyboard
+  document.addEventListener("keydown", function (e) {
+    if (!session || e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT" || e.metaKey || e.ctrlKey) return;
+    if (e.key === " " || e.key === "Enter") {
+      if (!session.shown) { e.preventDefault(); reveal(); }
+    } else if (session.shown && "1234".indexOf(e.key) >= 0 && e.key) { grade(Number(e.key)); }
+    else if (e.key === "z") { undo(); }
+    else if (e.key === "Escape") { home(); }
+  });
+
+  if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+    addEventListener("load", function () { navigator.serviceWorker.register("./sw.js").catch(function () {}); });
+  }
+  home();
+})();
+</script>
+</body>
+</html>
