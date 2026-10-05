@@ -82,5 +82,24 @@ ok(store(p2).settings.newPerDay === 5, "new-cards/day setting saved");
 [...p2.d.querySelectorAll("button")].find((b) => b.textContent === "← Back").click();
 console.log("home text:", p2.text().match(/Study \d+ cards|All caught up/)[0]); ok(p2.text().includes("Study 4 cards"), "cap 5 minus 1 new card already studied today = 4");
 
+// --- export carries what skill-check needs: per-deck summary and per-day, per-deck review counts
+p = page(base);
+p.q("#all").click();
+for (let i = 0; i < 3; i++) { p.q("#show").click(); p.q(".g3").click(); }
+const today = store(p).newToday.date;
+ok(store(p).days[today].n === 3 && Object.values(store(p).days[today].by).reduce((a, b) => a + b, 0) === 3,
+   "each review is counted under its deck: " + JSON.stringify(store(p).days[today].by));
+p.q("#show").click(); p.q(".g3").click(); p.q("#undo").click();
+ok(Object.values(store(p).days[today].by).reduce((a, b) => a + b, 0) === 3, "undo also rolls back the per-deck count");
+p.q(".topbar .btn").click();
+[...p.d.querySelectorAll("button")].find((b) => b.textContent === "Open settings").click();
+[...p.d.querySelectorAll("button")].find((b) => b.textContent === "Export").click();
+const ex = JSON.parse(p.q("textarea").value);
+ok(ex.summary && Object.keys(ex.summary.decks).length === 8, "export has a summary for all 8 decks");
+ok(ex.summary.decks.owasp_llm.total === 18 && ex.summary.decks.owasp_llm.new === 15 && ex.summary.exported === today, "summary counts and date are right: " + JSON.stringify(ex.summary.decks.owasp_llm));
+ok(!("summary" in store(p)), "summary is not stored in the app's own state");
+[...p.d.querySelectorAll("button")].find((b) => b.textContent === "Import").click();
+ok(!("summary" in store(p)) && Object.keys(store(p).states).length === 3, "importing an export strips the summary and keeps progress");
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exitCode = failed ? 1 : 0;

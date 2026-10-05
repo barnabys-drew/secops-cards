@@ -210,6 +210,8 @@ if (typeof module !== "undefined") {
   "use strict";
   const KEY = "secops-cards:v1";
   const app = document.getElementById("app");
+  const CARD_DECK = {};
+  DECKS.forEach(function (d) { d.cards.forEach(function (c) { CARD_DECK[c.id] = d.id; }); });
 
   // ---- storage: localStorage when available, in-memory otherwise (private windows, blocked storage)
   let memory = null;
@@ -368,9 +370,11 @@ if (typeof module !== "undefined") {
     const before = db.states[c.id] ? Object.assign({}, db.states[c.id]) : null;
     const wasNew = isNew(before);
     const day = db.days[t] || { n: 0, ok: 0 };
-    const snapshot = { card: c, before: before, wasNew: wasNew, day: Object.assign({}, day), g: g };
+    day.by = day.by || {};
+    const snapshot = { card: c, before: before, wasNew: wasNew, day: JSON.parse(JSON.stringify(day)), g: g };
     db.states[c.id] = schedule(before, g, t);
     day.n += 1; if (g >= GRADE.HARD) day.ok += 1;
+    day.by[CARD_DECK[c.id]] = (day.by[CARD_DECK[c.id]] || 0) + 1;
     db.days[t] = day;
     if (wasNew) { newLeft(); db.newToday.n += 1; }
     snapshot.requeued = g === GRADE.AGAIN;
@@ -429,8 +433,16 @@ if (typeof module !== "undefined") {
       const v = Math.max(0, Math.min(100, parseInt(num.value, 10) || 0));
       db.settings.newPerDay = v; num.value = String(v); save(); msg.textContent = "Saved: " + v + " new cards per day.";
     });
+    function summary() {
+      const out = { exported: today(), decks: {} };
+      DECKS.forEach(function (d) {
+        const c = counts(d);
+        out.decks[d.id] = { title: d.title, total: c.total, due: c.due, new: c.fresh, mature: c.mature };
+      });
+      return out;
+    }
     function doExport() {
-      box.value = JSON.stringify(db);
+      box.value = JSON.stringify(Object.assign({}, db, { summary: summary() }));
       box.select();
       let copied = false;
       try { copied = navigator.clipboard && navigator.clipboard.writeText(box.value); } catch (e) { /* fall through */ }
@@ -440,6 +452,7 @@ if (typeof module !== "undefined") {
       let data;
       try { data = JSON.parse(box.value); } catch (e) { msg.textContent = "That is not valid JSON."; return; }
       if (!data || typeof data !== "object" || typeof data.states !== "object") { msg.textContent = "That does not look like a backup."; return; }
+      delete data.summary; // derived at export time; never stored
       db = Object.assign(load(), data); save(); msg.textContent = "Imported " + Object.keys(db.states).length + " card records.";
     }
     function doReset() {
