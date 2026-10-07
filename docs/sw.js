@@ -1,6 +1,6 @@
 /* Service worker: lets the app open with no signal (e.g. on the train).
    CACHE is stamped with a content hash at build time, so a rebuild invalidates the old cache. */
-const CACHE = "secops-cards-9e87cb812529";
+const CACHE = "secops-cards-7d7b1bc3c31f";
 
 const ASSETS = [
   "./",

@@ -96,7 +96,7 @@ p.q(".topbar .btn").click();
 [...p.d.querySelectorAll("button")].find((b) => b.textContent === "Open settings").click();
 [...p.d.querySelectorAll("button")].find((b) => b.textContent === "Export").click();
 const ex = JSON.parse(p.q("textarea").value);
-ok(ex.summary && Object.keys(ex.summary.decks).length === 8, "export has a summary for all 8 decks");
+ok(ex.summary && Object.keys(ex.summary.decks).length === deckData(p).length, "export has a summary for all " + deckData(p).length + " decks");
 const owaspTotal = deckData(p).find((d) => d.id === "owasp_llm").cards.length;
 ok(ex.summary.decks.owasp_llm.total === owaspTotal && ex.summary.decks.owasp_llm.new === owaspTotal - 3 && ex.summary.exported === today, "summary counts and date are right: " + JSON.stringify(ex.summary.decks.owasp_llm));
 ok(!("summary" in store(p)), "summary is not stored in the app's own state");
@@ -113,7 +113,7 @@ const correctIdx = (pg) => { const c = currentCard(pg); return [...pg.d.querySel
 p = page(base);
 btn(p, "Quiz").click();
 const allCards = deckData(p).flatMap((d) => d.cards), withChoices = allCards.filter((c) => c.x).length;
-ok(withChoices < allCards.length && p.text().includes(withChoices + " questions across 8 decks"), "quiz mode counts only cards that have choices (" + withChoices + " of " + allCards.length + ")");
+ok(withChoices < allCards.length && p.text().includes(withChoices + " questions across " + deckData(p).length + " decks"), "quiz mode counts only cards that have choices (" + withChoices + " of " + allCards.length + ")");
 ok(p.text().includes("Study 15 questions"), "quiz has its own daily new cap");
 ok(store(p).settings.mode === "quiz", "mode choice is remembered");
 p.q("#all").click();

@@ -25,6 +25,12 @@ should not stretch your recall intervals. Review counts from both modes add up f
 | aws_ir | CloudTrail, GuardDuty, IAM compromise containment, EC2 isolation, evidence handling |
 | detection_siem | Detection lifecycle, Sigma/OCSF, data lakes, SOAR, measuring coverage |
 | python_security | Beginner Python, boto3 pitfalls, injection traps |
+| data_lake_platform | Greenfield SIEM: medallion layers, pipelines, cost, UEBA, risk-based alerting, the AI layer |
+| ai_ir_automation | AI agents in IR: graduated autonomy, evals, shadow mode, prompt injection in logs |
+| ir_case_lead | Leading cases: roles, scoping, decision logs, exec updates, post-incident reviews |
+| data\_lake\_platform | Greenfield SIEM: medallion layers, pipelines, cost, UEBA, risk-based alerting, the AI layer |
+| ai\_ir\_automation | AI agents in IR: graduated autonomy, evals, shadow mode, prompt injection in logs |
+| ir\_case\_lead | Leading cases: roles, scoping, decision logs, exec updates, post-incident reviews |
 
 ## Add or edit cards
 
