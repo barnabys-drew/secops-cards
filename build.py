@@ -276,6 +276,10 @@ def main() -> None:
         dv = sum(1 for c in d["cards"] if "d" in c)
         print(f"  {d['id']:<20}{len(d['cards']):>4}  quiz {q:>3}  dives {dv:>3}")
     print(f"page : docs/index.html ({(DOCS / 'index.html').stat().st_size / 1024:.0f} KB)   cache: secops-cards-{version}")
+    for d in decks:
+        bare = sum(1 for c in d["cards"] if "d" not in c)
+        if bare:
+            warnings.append(f"{d['id']}: {bare} of {len(d['cards'])} cards have no deep dive (add them to dives/)")
     for w in warnings:
         print("WARNING:", w, file=sys.stderr)
 
