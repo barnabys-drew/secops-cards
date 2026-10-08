@@ -4,7 +4,7 @@
    A new build changes sw.js, the browser installs the new worker, and the old cache is deleted.
    So pages are served from the cache first: no wait on a weak connection, and nothing fetched at
    runtime can overwrite the known-good copy (a captive-portal page or an error response, say). */
-const CACHE = "secops-cards-6c7b28b177dd";
+const CACHE = "secops-cards-051336d87c1f";
 
 const ASSETS = [
   "./",

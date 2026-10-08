@@ -111,6 +111,12 @@
   .verdict { font-weight: 700; margin-bottom: 6px; }
   .verdict.ok { color: var(--good); }
   .verdict.no { color: var(--again); }
+  .dive { margin-top: 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--surface-2); }
+  .dive summary { cursor: pointer; padding: 12px 14px; font-weight: 650; min-height: 44px; display: flex; align-items: center; }
+  .dive-body { padding: 0 14px 14px; }
+  .dive-body h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-dim); margin: 16px 0 4px; }
+  .dive-body p, .dive-body li { margin: 6px 0; overflow-wrap: anywhere; }
+  .dive-body ul { padding-left: 1.2rem; margin: 6px 0; }
   [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>

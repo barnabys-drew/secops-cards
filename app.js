@@ -87,13 +87,32 @@
     (children || []).forEach(function (c) { if (c) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
     return n;
   }
-  // Card text is data, not markup: build DOM nodes, only `backtick` spans become <code>.
+  // Card text is data, not markup: build DOM nodes. Only `code` and **bold** spans are interpreted.
   function rich(target, text) {
-    text.split(/(`[^`]+`)/).forEach(function (part) {
+    text.split(/(`[^`]+`|\*\*[^*]+\*\*)/).forEach(function (part) {
       if (part.length > 2 && part[0] === "`" && part[part.length - 1] === "`") target.appendChild(el("code", { text: part.slice(1, -1) }));
+      else if (part.length > 4 && part.slice(0, 2) === "**" && part.slice(-2) === "**") target.appendChild(el("strong", { text: part.slice(2, -2) }));
       else if (part) target.appendChild(document.createTextNode(part));
     });
     return target;
+  }
+  // The deep dive: what it is and why it is the answer. Collapsed unless `open`; null if the card has none.
+  function diveEl(c, open) {
+    if (!c.d) return null;
+    const body = el("div", { class: "dive-body" });
+    c.d.forEach(function (sec) {
+      body.appendChild(el("h3", { text: sec.h }));
+      let list = null;
+      sec.b.forEach(function (blk) {
+        if (blk.indexOf("- ") === 0) {
+          if (!list) { list = el("ul"); body.appendChild(list); }
+          list.appendChild(rich(el("li"), blk.slice(2)));
+        } else { list = null; body.appendChild(rich(el("p"), blk)); }
+      });
+    });
+    const d = el("details", { class: "dive" }, [el("summary", { text: "Deep dive: what it is and why" }), body]);
+    if (open) d.open = true;
+    return d;
   }
   // Resolves true only if the browser really accepted the copy. writeText returns a promise that can reject
   // (permission denied, insecure context, unfocused document), so a truthy return value proves nothing.
@@ -199,7 +218,7 @@
     });
     if (!queue.length) { home(); return; }
     session = { mode: m, queue: queue, deckOf: deckOf, total: queue.length, shown: false, graded: 0, ok: 0,
-                missed: new Set(), undo: null, multi: decks.length > 1, choices: [], picked: -1, num: 1 };
+                missed: new Set(), undo: null, multi: decks.length > 1, choices: [], picked: -1, num: 1, result: false };
     showCard();
   }
 
@@ -214,6 +233,7 @@
   function showCard() {
     if (!session.queue.length) { finish(); return; }
     session.shown = false;
+    session.result = false;
     session.num = session.graded + 1;
     if (session.mode === "quiz") { startQuiz(session.queue[0]); return; }
     const c = session.queue[0];
@@ -226,7 +246,8 @@
       ]),
       el("div", { id: "ctl" }, [
         el("button", { class: "btn primary", id: "show", text: "Show answer", onclick: reveal, style: "margin-top:14px" }),
-        el("p", { class: "hint", text: "Space shows the answer · 1–4 grades it" }),
+        el("button", { class: "btn ghost", id: "dunno", text: "I don't know: teach me", onclick: dontKnow, style: "margin-top:10px;width:100%" }),
+        el("p", { class: "hint", text: "Space shows the answer · 1–4 grades it · 0 means you don't know" }),
       ]),
     ]);
     render(root);
@@ -240,18 +261,47 @@
     const c = session.queue[0];
     const ans = document.getElementById("ans");
     rich(ans, c.a); ans.hidden = false;
+    const dive = diveEl(c, false);
+    if (dive) ans.parentNode.appendChild(dive);
     const prev = previewLabels(db.states[c.id], today());
     const names = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
     const grades = el("div", { class: "grades" }, [1, 2, 3, 4].map(function (g) {
       return el("button", { class: "g" + g, onclick: function () { grade(g); } }, [names[g], el("small", { text: prev[g] })]);
     }));
-    document.getElementById("ctl").replaceChildren(grades, el("p", { class: "hint", text: "How well did you know it?" }));
+    document.getElementById("ctl").replaceChildren(grades, el("p", { class: "hint", text: "How well did you know it? Again opens the deep dive." }));
   }
 
   function grade(g) {
     if (!session || session.mode !== "flash" || !session.shown) return;
+    const c = session.queue[0];
     applyGrade(g);
-    showCard();
+    if (g === GRADE.AGAIN && c.d) renderFlashResult(c); else showCard();
+  }
+
+  // Did not know it: count it as Again and teach it, rather than just moving on.
+  function dontKnow() {
+    if (!session || session.mode !== "flash" || session.shown) return;
+    session.shown = true;
+    const c = session.queue[0];
+    applyGrade(GRADE.AGAIN);
+    renderFlashResult(c);
+  }
+
+  function renderFlashResult(c) {
+    session.result = true;
+    const card = el("div", { class: "card" }, [
+      session.multi ? el("span", { class: "chip", text: session.deckOf[c.id] }) : null,
+      rich(el("div", { class: "q" }), c.q),
+      rich(el("div", { class: "a" }), c.a),
+      diveEl(c, true),
+    ]);
+    const root = el("div", {}, [
+      topbar(), card,
+      el("button", { class: "btn primary", id: "next", text: session.queue.length ? "Got it, next" : "Finish", onclick: showCard, style: "margin-top:14px" }),
+      el("p", { class: "hint", text: "This card will come back later in the session · z undoes" }),
+    ]);
+    render(root);
+    if (session.undo) root.querySelector("#undo").hidden = false;
   }
 
   // Record one review: schedule the card, update daily counts and the session. Does not draw anything.
@@ -287,12 +337,13 @@
   // ---- quiz mode: pick an answer; right = Good, wrong = Again
   function startQuiz(c) {
     session.choices = shuffle([{ t: c.s, ok: true }].concat(c.x.map(function (t) { return { t: t, ok: false }; })));
-    session.picked = -1;
+    session.picked = -1;   // -1 unanswered, -2 "I don't know", otherwise the index picked
     renderQuiz(c);
   }
 
   function renderQuiz(c) {
-    const answered = session.picked >= 0;
+    const answered = session.picked !== -1;
+    const unsure = session.picked === -2;
     const opts = session.choices.map(function (ch, i) {
       let cls = "opt", mark = String(i + 1);
       if (answered) {
@@ -312,18 +363,22 @@
       el("div", { class: "opts" }, opts),
     ]);
     const parts = [topbar(), card];
+    if (!answered) {
+      parts.push(el("button", { class: "btn ghost", id: "dunno", text: "I don't know: teach me", onclick: chooseDontKnow, style: "margin-top:10px;width:100%" }));
+    }
     if (answered) {
-      const right = session.choices[session.picked].ok;
+      const right = !unsure && session.choices[session.picked].ok;
       const expl = el("div", { class: "a" }, [
-        el("div", { class: "verdict " + (right ? "ok" : "no"), text: right ? "Correct" : "Not quite" }),
+        el("div", { class: "verdict " + (right ? "ok" : "no"), text: unsure ? "No problem. Here is the answer." : right ? "Correct" : "Not quite" }),
         rich(el("div"), c.a),
+        diveEl(c, !right),   // open when you missed it or did not know; one tap away when you got it
       ]);
       card.appendChild(expl);
       const last = !session.queue.length;
       parts.push(el("button", { class: "btn primary", id: "next", text: last ? "Finish" : "Next", onclick: showCard, style: "margin-top:14px" }));
-      parts.push(el("p", { class: "hint", text: "Space or Enter for next · z undoes" }));
+      parts.push(el("p", { class: "hint", text: "Space or Enter for next · d toggles the deep dive · z undoes" }));
     } else {
-      parts.push(el("p", { class: "hint", text: "Press 1–" + session.choices.length + " to answer" }));
+      parts.push(el("p", { class: "hint", text: "Press 1–" + session.choices.length + " to answer · 0 means you don't know" }));
     }
     const root = el("div", {}, parts);
     render(root);
@@ -336,6 +391,15 @@
     session.picked = i;
     const c = session.queue[0];
     applyGrade(session.choices[i].ok ? GRADE.GOOD : GRADE.AGAIN);
+    renderQuiz(c);
+  }
+
+  function chooseDontKnow() {
+    if (!session || session.mode !== "quiz" || session.shown) return;
+    session.shown = true;
+    session.picked = -2;
+    const c = session.queue[0];
+    applyGrade(GRADE.AGAIN);
     renderQuiz(c);
   }
 
@@ -440,15 +504,21 @@
     const k = e.key;
     if (k === "z") { undo(); return; }
     if (k === "Escape") { home(); return; }
+    if (k === "d") { const dv = document.querySelector(".dive"); if (dv) dv.open = !dv.open; return; }
+    if (session.result && (k === " " || k === "Enter" || k === "ArrowRight") && e.target.tagName !== "BUTTON") {
+      e.preventDefault(); showCard(); return;   // the flashcard deep-dive screen
+    }
     if (session.mode === "quiz") {
       if (!session.shown) {
         if (/^[1-4]$/.test(k)) choose(Number(k) - 1);
+        else if (k === "0") chooseDontKnow();
       } else if ((k === " " || k === "Enter" || k === "ArrowRight") && e.target.tagName !== "BUTTON") {
         e.preventDefault(); showCard(); // a focused button handles its own Enter/Space click
       }
       return;
     }
     if (k === " " || k === "Enter") { if (!session.shown) { e.preventDefault(); reveal(); } }
+    else if (k === "0") dontKnow();
     else if (session.shown && /^[1-4]$/.test(k)) grade(Number(k));
   });
 

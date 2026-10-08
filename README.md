@@ -10,6 +10,11 @@ Two ways to study the same decks, switched at the top of the home screen:
 - **Quiz**: pick the right answer from four choices, then read the full explanation. Tests
   recognition, and suits scenario questions ("which category is this?").
 
+**Deep dives.** When you don't know an answer, say so (the "I don't know: teach me" button, or key `0`) and
+the app counts it as a miss and opens a deep dive: what the thing is, why that is the right answer, and
+how to tell it apart from the look-alikes. The same happens when you mark a flashcard Again or pick a wrong
+quiz answer. When you do know it, the dive is still one tap away (key `d` toggles it).
+
 Each mode keeps its own schedule, because recognizing an answer is easier than recalling it and
 should not stretch your recall intervals. Review counts from both modes add up for your daily total.
 
@@ -54,6 +59,17 @@ X: Noise events were filtered out
 Cards without `S:`/`X:` still work as flashcards and are skipped in Quiz mode. A blank line ends a
 card, so keep an answer's paragraphs together; text left outside any card is reported as a warning
 when you build. Wrap code in `backticks`.
+
+Deep dives live in `dives/`, in a file with the same name as the deck, one entry per card. The `##`
+line must match the card's question exactly (the build fails on a typo):
+
+```
+## What does CloudTrail log file integrity validation prove?
+### What it is
+A paragraph. Blank lines separate paragraphs; lines starting with "- " are bullets.
+### Why this is the answer
+More text. Use `code` and **bold** if you need them.
+```
 
 - `%% like this` is a comment line and is ignored.
 - An answer line that must begin with `Q:`, `A:`, `S:` or `X:` is written with a leading backslash

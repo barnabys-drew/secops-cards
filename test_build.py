@@ -85,6 +85,30 @@ class ParseDeck(unittest.TestCase):
             self.assertNotIn(" ", icon["purpose"])   # "any maskable" in one entry crops art on Android
         self.assertEqual({i["purpose"] for i in icons}, {"any", "maskable"})
 
+    def test_deep_dive_parsing_blocks_bullets_and_sections(self):
+        text = ("# file title ignored\n\n## Why?\n### What it is\nFirst line\nsame paragraph.\n\nSecond paragraph.\n"
+                "- bullet one\n- bullet two\n### Why this is the answer\nBecause.\n")
+        dives = build.parse_dives("x", text)
+        secs = dives["Why?"]
+        self.assertEqual([s["h"] for s in secs], ["What it is", "Why this is the answer"])
+        self.assertEqual(secs[0]["b"], ["First line same paragraph.", "Second paragraph.", "- bullet one", "- bullet two"])
+
+    def test_deep_dive_errors(self):
+        for bad in ("## Q\n### Empty\n### Next\ntext\n",         # empty section
+                    "## Q\nloose text before any heading\n",
+                    "### Section with no question\ntext\n",
+                    "## Q\n### A\nx\n## Q\n### A\ny\n",           # duplicate
+                    "## Q\n"):                                     # no sections
+            with self.assertRaises(build.DeckError, msg=bad):
+                build.parse_dives("x", bad)
+
+    def test_deep_dive_must_match_a_card(self):
+        deck = build.parse_deck("x", "Q: real question\nA: a\n")
+        build.attach_dives(deck, build.parse_dives("x", "## real question\n### H\ntext\n"))
+        self.assertEqual(deck["cards"][0]["d"], [{"h": "H", "b": ["text"]}])
+        with self.assertRaises(build.DeckError):
+            build.attach_dives(deck, build.parse_dives("x", "## real questoin\n### H\ntext\n"))
+
     def test_real_decks_load_with_unique_ids(self):
         decks = build.load_decks()
         ids = [c["id"] for d in decks for c in d["cards"]]

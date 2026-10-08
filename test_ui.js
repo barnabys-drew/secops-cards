@@ -42,6 +42,7 @@ ok(p.text().includes("3 / 15"), "can re-grade after undo");
 p = page(base);
 p.q("#all").click();
 p.q("#show").click(); p.q(".g1").click();            // miss card 1
+if (p.q("#next")) p.q("#next").click();        // a missed card with a deep dive shows it first
 let n = 0;
 while (!p.text().includes("Session done") && n++ < 100) { if (p.q("#show")) p.q("#show").click(); p.q(".g3").click(); }
 ok(/15 cards · 93% recalled/.test(p.text()), "14/15 first-pass => 93%: " + (p.text().match(/\d+% recalled/) || [])[0]);
@@ -264,6 +265,97 @@ p.q("#all").click(); p.q("#show").click(); p.q(".g3").click();
 ok(p.w.localStorage.getItem("secops-cards:v1:corrupt") === "{broken json", "the preserved copy survives later saves");
 p = page(base, { preset: { "secops-cards:v1": "[1,2,3]" } });
 ok(p.text().includes("SecOps Cards") && !p.text().includes("NaN") && p.errors.length === 0, "a stored value of the wrong shape loads as empty progress without errors");
+
+// ================= Deep dives =================
+const hasDive = (c) => !!c.d;
+const diveCards = (pg) => deckData(pg).flatMap((d) => d.cards).filter(hasDive);
+const owaspFirst = (pg) => deckData(pg).find((d) => d.id === "owasp_llm").cards[0];
+const openDeck = (pg, title) => [...pg.d.querySelectorAll(".deck")].find((b) => b.textContent.startsWith(title)).click();
+
+// -- flashcards: "I don't know" teaches, counts as Again, and the card comes back
+p = page(base);
+ok(diveCards(p).length > 0, "setup: the page has cards with deep dives (" + diveCards(p).length + ")");
+openDeck(p, "OWASP LLM");
+ok(!!p.q("#dunno"), "flashcard question screen offers 'I don't know'");
+const q1 = owaspFirst(p).id;
+p.q("#dunno").click();
+ok(p.q(".dive") && p.q(".dive").open, "deep dive opens straight away");
+ok(p.q(".dive-body h3") && p.q(".dive-body p"), "the dive shows headed sections with paragraphs");
+ok(p.text().includes(plain(owaspFirst(p).a).slice(0, 30)), "the short answer is shown too");
+ok(store(p).states[q1] && store(p).states[q1].lapses === 1 && store(p).states[q1].interval === 0, "'I don't know' is recorded as Again (a lapse, due now)");
+ok(p.q("#next") && p.text().includes("1 / 15"), "a Next button is shown and the counter has not run ahead");
+p.q("#next").click();
+ok(p.text().includes("1 / 15") && !p.q(".dive"), "Next moves on to a fresh card");
+p.q("#undo").click();
+ok(!(q1 in store(p).states) && p.text().includes(plain(owaspFirst(p).q).slice(0, 20)), "undo from the deep dive screen puts the card back unanswered");
+
+// -- flashcards: grading Again after revealing also opens the dive; Good does not interrupt
+p = page(base); openDeck(p, "OWASP LLM");
+p.q("#show").click();
+ok(p.q(".dive") && !p.q(".dive").open, "after revealing, the deep dive is one tap away but collapsed");
+p.q(".g1").click();
+ok(p.q(".dive") && p.q(".dive").open && p.q("#next"), "grading Again opens the deep dive instead of skipping on");
+p.q("#next").click();
+p.q("#show").click(); p.q(".g3").click();
+ok(!p.q(".dive") || !p.q("#next"), "grading Good goes straight to the next card");
+
+// -- keyboard in flashcards: 0 = don't know, Space continues from the dive screen, d toggles
+p = page(base); openDeck(p, "OWASP LLM");
+key(p, "0");
+ok(p.q(".dive") && p.q(".dive").open, "key 0 means 'I don't know'");
+key(p, "d");
+ok(!p.q(".dive").open, "key d toggles the deep dive closed");
+key(p, "d");
+ok(p.q(".dive").open, "key d toggles it open again");
+key(p, " ");
+ok(!p.q(".dive") && p.text().includes("1 / 15"), "Space leaves the deep dive screen");
+
+// -- quiz: wrong answer and "I don't know" open the dive; a right answer leaves it collapsed
+p = page(base); btn(p, "Quiz").click(); openDeck(p, "OWASP LLM");
+ok(!!p.q("#dunno"), "quiz question screen offers 'I don't know'");
+let cardNow = currentCard(p);
+ok(!!cardNow.d, "setup: the current quiz card has a deep dive");
+p.d.querySelectorAll(".opt")[correctIdx(p)].click();
+ok(p.q(".dive") && !p.q(".dive").open && p.q(".verdict.ok"), "right answer: dive available but collapsed");
+p.q("#next").click();
+const wrongAt = [0, 1, 2, 3].find((i) => i !== correctIdx(p));
+p.d.querySelectorAll(".opt")[wrongAt].click();
+ok(p.q(".dive") && p.q(".dive").open && p.q(".verdict.no"), "wrong answer: dive opens automatically");
+p.q("#next").click();
+cardNow = currentCard(p);
+p.q("#dunno").click();
+ok(p.q(".verdict").textContent.includes("No problem") && p.q(".dive").open, "'I don't know' in quiz shows the answer and an open dive");
+ok(p.q(".opt.right") && p.d.querySelectorAll(".opt.wrong").length === 0 && [...p.d.querySelectorAll(".opt")].every((b) => b.disabled), "the correct choice is marked, none marked wrong, choices locked");
+ok(store(p).quiz[cardNow.id].lapses === 1, "'I don't know' in quiz is recorded as a lapse");
+p.q("#undo").click();
+ok(!(cardNow.id in store(p).quiz), "undo works after 'I don't know' in quiz");
+key(p, "0");
+ok(p.q(".verdict").textContent.includes("No problem"), "key 0 means 'I don't know' in quiz too");
+
+// -- cards without a dive still work: 'I don't know' falls back to the written answer
+p = page(base); openDeck(p, "MITRE ATLAS");
+const noDive = deckData(p).find((d) => d.id === "atlas_attack").cards.find((c) => !c.d);
+if (noDive) {
+  ok(true, "setup: a card without a deep dive exists");
+  // cycle until that card is on screen
+  let guard2 = 0;
+  while (guard2++ < 60 && plain(noDive.q) !== p.q(".q").textContent) { p.q("#show").click(); p.q(".g3").click(); }
+  if (plain(noDive.q) === p.q(".q").textContent) {
+    p.q("#dunno").click();
+    ok(!p.q(".dive") && p.text().includes(plain(noDive.a).slice(0, 25)) && p.q("#next"), "no dive: the written answer is shown with a Next button");
+  }
+}
+
+// -- dive text is data, not markup
+const evilDive = base.replace(/("d":\[\{"h":"What it is","b":\[")/, '$1<img src=x onerror=window.__pwn3=1> **bold** ');
+ok(evilDive !== base, "payload injected into a deep dive");
+p = page(evilDive); openDeck(p, "OWASP LLM"); p.q("#dunno").click();
+ok(!p.w.__pwn3 && !p.q(".dive img") && p.q(".dive strong") && p.q(".dive strong").textContent === "bold", "markup in a dive is inert; **bold** is the only formatting interpreted");
+
+// -- reviews from 'I don't know' feed the daily counts used by the CLI export
+p = page(base); openDeck(p, "OWASP LLM"); p.q("#dunno").click();
+const dayKey = store(p).newToday.date;
+ok(store(p).days[dayKey].n === 1 && store(p).days[dayKey].by.owasp_llm === 1, "an 'I don't know' counts as a review under its deck");
 
 // -- undo after the 3am rollover restores the day the review belonged to
 const clock = { t: new Date(2026, 9, 5, 2, 59).getTime() };      // 02:59 on Oct 5 still counts as Oct 4

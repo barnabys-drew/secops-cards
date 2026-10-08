@@ -16,6 +16,16 @@ Deck format (cards/NN_name.md):
     S: short correct choice        (optional: makes the card available in Quiz mode)
     X: a plausible wrong choice    (2 to 4 of these, with S:)
 
+Deep dives live in dives/NN_name.md (same names as the decks), one entry per card:
+
+    ## the exact question text of the card
+    ### What it is
+    A paragraph. Blank lines separate paragraphs; lines starting "- " are bullets.
+    ### Why this is the answer
+    ...
+
+They open when you don't know an answer. A dive whose question matches no card is a build error.
+
 Lines starting with %% are comments. A line in an answer that must begin with Q:, A:, S: or X: is
 written with a leading backslash (\\S: like this); the backslash is dropped. Text that sits outside
 any card (for example a second paragraph after a blank line) is reported as a warning, not dropped
@@ -34,6 +44,7 @@ from typing import Optional
 
 HERE = pathlib.Path(__file__).parent
 CARDS = HERE / "cards"
+DIVES = HERE / "dives"
 DOCS = HERE / "docs"
 
 APP_NAME = "SecOps Cards"
@@ -115,11 +126,77 @@ def parse_deck(deck_id: str, text: str, warnings: Optional[list] = None) -> dict
     return {"id": deck_id, "title": title, "desc": desc, "cards": cards}
 
 
-def load_decks(directory: pathlib.Path = CARDS, warnings: Optional[list] = None) -> list[dict]:
+def parse_dives(deck_id: str, text: str) -> dict:
+    """Parse a dives file into {question: [{"h": heading, "b": [block, ...]}, ...]}."""
+    dives: dict = {}
+    question = None
+    section = None
+    buf: list = []
+
+    def flush_block() -> None:
+        if buf and section is not None:
+            section["b"].append(" ".join(buf))
+        buf.clear()
+
+    def close_section(n: int) -> None:
+        nonlocal section
+        flush_block()
+        if section is not None and not section["b"]:
+            raise DeckError(f"{deck_id}: deep dive for '{question[:50]}' has an empty section '{section['h']}' (line {n})")
+        section = None
+
+    for n, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("%%"):
+            continue
+        if line.startswith("## "):
+            close_section(n)
+            question = line[3:].strip()
+            if question in dives:
+                raise DeckError(f"{deck_id}: duplicate deep dive for '{question[:50]}'")
+            dives[question] = []
+        elif line.startswith("### "):
+            if question is None:
+                raise DeckError(f"{deck_id}: line {n}: section before any '## question' line")
+            close_section(n)
+            section = {"h": line[4:].strip(), "b": []}
+            dives[question].append(section)
+        elif not line.strip():
+            flush_block()
+        elif section is None:
+            if question is not None:
+                raise DeckError(f"{deck_id}: line {n}: text before the first '### heading' of '{question[:40]}'")
+            # text before the first entry (a file title or notes) is ignored
+        elif line.startswith("- "):
+            flush_block()
+            buf.append(line.rstrip())
+        else:
+            buf.append(line.strip())
+    close_section(len(text.splitlines()))
+    for q, secs in dives.items():
+        if not secs:
+            raise DeckError(f"{deck_id}: deep dive for '{q[:50]}' has no sections")
+    return dives
+
+
+def attach_dives(deck: dict, dives: dict, path: str = "") -> None:
+    """Add a "d" field to each card that has a deep dive. Unmatched dives are errors (usually a typo)."""
+    by_q = {c["q"]: c for c in deck["cards"]}
+    unknown = [q for q in dives if q not in by_q]
+    if unknown:
+        raise DeckError(f"{path or deck['id']}: deep dive matches no card: {unknown[0][:70]!r}")
+    for q, secs in dives.items():
+        by_q[q]["d"] = secs
+
+
+def load_decks(directory: pathlib.Path = CARDS, warnings: Optional[list] = None,
+               dives_dir: Optional[pathlib.Path] = DIVES) -> list[dict]:
     decks = []
     for path in sorted(directory.glob("*.md")):
         deck_id = re.sub(r"^\d+_", "", path.stem)
         deck = parse_deck(deck_id, path.read_text(encoding="utf-8"), warnings)
+        dive_path = (dives_dir / path.name) if dives_dir else None
+        if dive_path is not None and dive_path.is_file():
+            attach_dives(deck, parse_dives(deck_id, dive_path.read_text(encoding="utf-8")), f"dives/{path.name}")
         if deck["cards"]:
             decks.append(deck)
     ids = [d["id"] for d in decks]
@@ -192,10 +269,12 @@ def main() -> None:
 
     total = sum(len(d["cards"]) for d in decks)
     quiz = sum(1 for d in decks for c in d["cards"] if "x" in c)
-    print(f"decks: {len(decks)}   cards: {total}   quiz-ready: {quiz}")
+    dives = sum(1 for d in decks for c in d["cards"] if "d" in c)
+    print(f"decks: {len(decks)}   cards: {total}   quiz-ready: {quiz}   deep dives: {dives}")
     for d in decks:
         q = sum(1 for c in d["cards"] if "x" in c)
-        print(f"  {d['id']:<16}{len(d['cards']):>4}  quiz {q:>3}")
+        dv = sum(1 for c in d["cards"] if "d" in c)
+        print(f"  {d['id']:<20}{len(d['cards']):>4}  quiz {q:>3}  dives {dv:>3}")
     print(f"page : docs/index.html ({(DOCS / 'index.html').stat().st_size / 1024:.0f} KB)   cache: secops-cards-{version}")
     for w in warnings:
         print("WARNING:", w, file=sys.stderr)
