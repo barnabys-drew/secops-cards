@@ -4,7 +4,9 @@
   "description": "Spaced-repetition flashcards for security engineering, as an offline phone-installable web app.",
   "scripts": {
     "build": "python3 build.py",
-    "test": "node --test srs.test.js && node test_ui.js && python3 -m unittest -q test_build"
+    "test": "node --test srs.test.js && node test_sw.js && node test_ui.js && python3 -m unittest -q test_build"
   },
-  "devDependencies": { "jsdom": "^26.0.0" }
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
 }

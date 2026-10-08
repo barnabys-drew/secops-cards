@@ -8,17 +8,66 @@
   // ---- storage: localStorage when available, in-memory otherwise (private windows, blocked storage)
   // states = Flashcards progress, quiz = Quiz progress. They are kept apart on purpose: picking the
   // right answer from four choices is easier than recalling it, so it must not inflate recall intervals.
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  function isObj(x) { return x !== null && typeof x === "object" && !Array.isArray(x); }
+  function isNum(x) { return typeof x === "number" && isFinite(x); } // strict: no null, strings, or NaN
+  function num(x, fallback) { return isNum(x) ? x : fallback; }
+
+  function emptyDb() {
+    return { states: {}, quiz: {}, days: {}, settings: { newPerDay: 15, mode: "flash" }, newToday: { date: "", n: 0, nq: 0 } };
+  }
+  function cleanStates(src) {
+    const out = {}; let skipped = 0;
+    Object.keys(isObj(src) ? src : {}).forEach(function (id) {
+      const s = src[id];
+      const dueOk = isObj(s) && (s.due === null || (typeof s.due === "string" && DATE_RE.test(s.due)));
+      if (dueOk && isNum(s.interval) && isNum(s.ease) && isNum(s.reps)) {
+        out[id] = { ease: s.ease, interval: s.interval, reps: s.reps, due: s.due, lapses: num(s.lapses, 0) };
+      } else skipped += 1;
+    });
+    return { out: out, skipped: skipped };
+  }
+  function cleanDays(src) {
+    const out = {};
+    Object.keys(isObj(src) ? src : {}).forEach(function (d) {
+      const v = src[d];
+      if (!DATE_RE.test(d) || !isObj(v) || !isNum(v.n)) return;
+      const by = {};
+      if (isObj(v.by)) Object.keys(v.by).forEach(function (k) { if (isNum(v.by[k])) by[k] = v.by[k]; });
+      out[d] = { n: Math.max(0, Math.floor(v.n)), ok: Math.max(0, Math.floor(num(v.ok, 0))), by: by };
+    });
+    return out;
+  }
+  // Turn anything (stored value or imported file) into a well-formed db. Never throws.
+  function normalize(raw) {
+    const db = emptyDb(); let skipped = 0;
+    if (!isObj(raw)) return { db: db, skipped: 0 };
+    const a = cleanStates(raw.states), b = cleanStates(raw.quiz);
+    db.states = a.out; db.quiz = b.out; skipped = a.skipped + b.skipped;
+    db.days = cleanDays(raw.days);
+    if (isObj(raw.settings)) {
+      db.settings.newPerDay = Math.max(0, Math.min(100, Math.round(num(raw.settings.newPerDay, 15))));
+      db.settings.mode = raw.settings.mode === "quiz" ? "quiz" : "flash";
+    }
+    if (isObj(raw.newToday)) {
+      db.newToday = { date: typeof raw.newToday.date === "string" && DATE_RE.test(raw.newToday.date) ? raw.newToday.date : "",
+                      n: Math.max(0, num(raw.newToday.n, 0)), nq: Math.max(0, num(raw.newToday.nq, 0)) };
+    }
+    return { db: db, skipped: skipped };
+  }
+
   let memory = null;
+  let loadNotice = "";
   function load() {
-    let data = null;
-    try { data = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { data = memory; }
-    data = data || {};
-    data.states = data.states || {};
-    data.quiz = data.quiz || {};
-    data.days = data.days || {};
-    data.settings = Object.assign({ newPerDay: 15, mode: "flash" }, data.settings || {});
-    data.newToday = Object.assign({ date: "", n: 0, nq: 0 }, data.newToday || {});
-    return data;
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { return normalize(memory).db; } // storage blocked: memory only
+    if (raw === null) return normalize(memory).db;
+    try { return normalize(JSON.parse(raw)).db; } catch (e) {
+      // Unreadable saved data. Keep a copy before anything can overwrite it, and say so.
+      try { if (localStorage.getItem(KEY + ":corrupt") === null) localStorage.setItem(KEY + ":corrupt", raw); } catch (e2) { /* nothing more to do */ }
+      loadNotice = "Saved progress on this device could not be read, so this session starts fresh. A copy of the unreadable data was kept in this browser.";
+      return emptyDb();
+    }
   }
   function save() {
     memory = db;
@@ -45,6 +94,16 @@
       else if (part) target.appendChild(document.createTextNode(part));
     });
     return target;
+  }
+  // Resolves true only if the browser really accepted the copy. writeText returns a promise that can reject
+  // (permission denied, insecure context, unfocused document), so a truthy return value proves nothing.
+  function copyText(text) {
+    return new Promise(function (resolve) {
+      try {
+        if (!(navigator.clipboard && navigator.clipboard.writeText)) { resolve(false); return; }
+        navigator.clipboard.writeText(text).then(function () { resolve(true); }, function () { resolve(false); });
+      } catch (e) { resolve(false); }
+    });
   }
   function shuffle(a) {
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
@@ -95,6 +154,7 @@
     const root = el("div", {}, [
       el("h1", { text: "SecOps Cards" }),
       el("p", { class: "sub", text: total + " " + noun + " across " + DECKS.length + " decks" }),
+      loadNotice ? el("p", { class: "msg", role: "alert", text: loadNotice }) : null,
       modeSwitch(),
       el("p", { class: "note", text: m === "quiz" ? "Pick the right answer from four choices." : "Recall the answer, then grade yourself." }),
       el("div", { class: "stats" }, [
@@ -203,7 +263,7 @@
     const wasNew = isNew(before);
     const day = db.days[t] || { n: 0, ok: 0 };
     day.by = day.by || {};
-    const snapshot = { card: c, mode: m, before: before, wasNew: wasNew, day: JSON.parse(JSON.stringify(day)), g: g };
+    const snapshot = { card: c, mode: m, before: before, wasNew: wasNew, dayKey: t, day: JSON.parse(JSON.stringify(day)), g: g };
     states[c.id] = schedule(before, g, t);
     day.n += 1; if (g >= GRADE.HARD) day.ok += 1;
     day.by[CARD_DECK[c.id]] = (day.by[CARD_DECK[c.id]] || 0) + 1;
@@ -282,14 +342,13 @@
   function undo() {
     const u = session && session.undo;
     if (!u) return;
-    const t = today();
     const states = statesOf(u.mode);
     if (u.requeued) { const i = session.queue.lastIndexOf(u.card); if (i >= 0) session.queue.splice(i, 1); }
     else { session.graded -= 1; if (u.countedOk) session.ok -= 1; }
     if (u.addedMissed) session.missed.delete(u.card.id);
     if (u.before) states[u.card.id] = u.before; else delete states[u.card.id];
-    db.days[t] = u.day;
-    if (u.wasNew) {
+    db.days[u.dayKey] = u.day; // the day the review happened, even if the 3am rollover has passed since
+    if (u.wasNew && db.newToday.date === u.dayKey) { // the allowance is per day; a new day already reset it
       if (u.mode === "quiz") db.newToday.nq = Math.max(0, db.newToday.nq - 1);
       else db.newToday.n = Math.max(0, db.newToday.n - 1);
     }
@@ -320,10 +379,10 @@
     session = null;
     const msg = el("p", { class: "msg", role: "status" });
     const box = el("textarea", { "aria-label": "Progress backup JSON", spellcheck: "false" });
-    const num = el("input", { type: "number", min: "0", max: "100", value: String(db.settings.newPerDay), style: "width:5rem;padding:8px;border-radius:8px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);font:inherit" });
-    num.addEventListener("change", function () {
-      const v = Math.max(0, Math.min(100, parseInt(num.value, 10) || 0));
-      db.settings.newPerDay = v; num.value = String(v); save(); msg.textContent = "Saved: " + v + " new cards per day, in each mode.";
+    const perDay = el("input", { type: "number", min: "0", max: "100", value: String(db.settings.newPerDay), style: "width:5rem;padding:8px;border-radius:8px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);font:inherit" });
+    perDay.addEventListener("change", function () {
+      const v = Math.max(0, Math.min(100, parseInt(perDay.value, 10) || 0));
+      db.settings.newPerDay = v; perDay.value = String(v); save(); msg.textContent = "Saved: " + v + " new cards per day, in each mode.";
     });
     // Counts the companion CLI reads. Derived at export time and never stored. Flashcard progress only:
     // "mature" there means recalled, not recognised.
@@ -338,27 +397,32 @@
     function doExport() {
       box.value = JSON.stringify(Object.assign({}, db, { summary: summary() }));
       box.select();
-      let copied = false;
-      try { copied = navigator.clipboard && navigator.clipboard.writeText(box.value); } catch (e) { /* fall through */ }
-      msg.textContent = copied ? "Backup copied to clipboard (also shown below)." : "Backup shown below. Select it and copy.";
+      msg.textContent = "Backup shown below. Copying...";
+      copyText(box.value).then(function (copied) {
+        msg.textContent = copied ? "Backup copied to clipboard (also shown below)." : "Could not copy automatically. Select the text below and copy it.";
+      });
     }
     function doImport() {
       let data;
       try { data = JSON.parse(box.value); } catch (e) { msg.textContent = "That is not valid JSON."; return; }
-      if (!data || typeof data !== "object" || typeof data.states !== "object") { msg.textContent = "That does not look like a backup."; return; }
-      delete data.summary; // derived at export time; never stored
-      db = Object.assign(load(), data); save();
-      msg.textContent = "Imported " + Object.keys(db.states).length + " card records.";
+      if (!isObj(data) || !isObj(data.states)) { msg.textContent = "That does not look like a backup."; return; }
+      const result = normalize(data); // replaces everything on this device, with defaults for anything missing
+      db = result.db; save();
+      perDay.value = String(db.settings.newPerDay);
+      msg.textContent = "Imported " + Object.keys(db.states).length + " card records" +
+        (Object.keys(db.quiz).length ? " and " + Object.keys(db.quiz).length + " quiz records" : "") +
+        (result.skipped ? " (skipped " + result.skipped + " invalid)" : "") + ".";
     }
     function doReset() {
       if (!confirm("Erase all progress on this device? Export a backup first if unsure.")) return;
-      db = { states: {}, quiz: {}, days: {}, settings: db.settings, newToday: { date: "", n: 0, nq: 0 } }; save(); msg.textContent = "Progress erased.";
+      const keep = db.settings;
+      db = emptyDb(); db.settings = keep; save(); msg.textContent = "Progress erased.";
     }
     render(el("div", {}, [
       el("div", { class: "topbar" }, [el("button", { class: "btn ghost", text: "← Back", onclick: home }), el("span")]),
       el("h1", { text: "Settings" }),
       el("h2", { text: "New cards per day" }),
-      el("label", {}, [num]),
+      el("label", {}, [perDay]),
       el("h2", { text: "Backup" }),
       el("p", { class: "note", text: "Progress lives only in this browser. Export it to move to another device or to keep a copy; paste it into Import there." }),
       el("div", { class: "row2" }, [

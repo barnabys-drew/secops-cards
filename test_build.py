@@ -41,6 +41,50 @@ class ParseDeck(unittest.TestCase):
     def test_script_json_cannot_close_the_script_tag(self):
         self.assertNotIn("</script>", build.json_for_script({"a": "</script><b>"}))
 
+    def test_script_json_has_no_angle_brackets_and_round_trips(self):
+        import json
+        obj = [{"q": "<!--<script>alert(1)</script>", "a": "a < b > c"}]
+        out = build.json_for_script(obj)
+        self.assertNotIn("<", out)           # rules out </script> and <!--, which can hide the closing tag
+        self.assertEqual(json.loads(out), obj)
+
+    def test_template_fill_is_single_pass(self):
+        # a substituted value that looks like another token must not be substituted again
+        out = build.fill_template("[__A__][__B__]", {"__A__": "__B__", "__B__": "x"})
+        self.assertEqual(out, "[__B__][x]")
+
+    def test_text_outside_a_card_is_reported_not_lost_silently(self):
+        warnings = []
+        build.parse_deck("x", "# T\n\nQ: q\nA: first paragraph\n\nsecond paragraph after a blank line\n", warnings)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("second paragraph", warnings[0])
+
+    def test_comments_are_silent_and_percent_text_is_kept(self):
+        warnings = []
+        deck = build.parse_deck("x", "%% note to self\nQ: q\nA: 40% of cases\n%% another\n", warnings)
+        self.assertEqual(warnings, [])
+        self.assertEqual(deck["cards"][0]["a"], "40% of cases")
+
+    def test_escaped_markers_are_plain_text(self):
+        deck = build.parse_deck("x", "Q: q\nA: intro\n\\S: this line starts with S:\n\\Q: and this with Q:\n")
+        self.assertEqual(deck["cards"][0]["a"], "intro\nS: this line starts with S:\nQ: and this with Q:")
+        self.assertNotIn("s", deck["cards"][0])
+
+    def test_real_decks_have_no_warnings(self):
+        warnings = []
+        build.load_decks(warnings=warnings)
+        self.assertEqual(warnings, [])
+
+    def test_built_shell_is_complete_and_icons_are_not_double_purpose(self):
+        import json
+        for f in build.SHELL_FILES:
+            self.assertTrue((build.DOCS / f).is_file(), f)
+        icons = json.loads((build.DOCS / "manifest.webmanifest").read_text(encoding="utf-8"))["icons"]
+        self.assertTrue(icons)
+        for icon in icons:
+            self.assertNotIn(" ", icon["purpose"])   # "any maskable" in one entry crops art on Android
+        self.assertEqual({i["purpose"] for i in icons}, {"any", "maskable"})
+
     def test_real_decks_load_with_unique_ids(self):
         decks = build.load_decks()
         ids = [c["id"] for d in decks for c in d["cards"]]

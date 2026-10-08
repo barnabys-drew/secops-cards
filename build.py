@@ -16,6 +16,11 @@ Deck format (cards/NN_name.md):
     S: short correct choice        (optional: makes the card available in Quiz mode)
     X: a plausible wrong choice    (2 to 4 of these, with S:)
 
+Lines starting with %% are comments. A line in an answer that must begin with Q:, A:, S: or X: is
+written with a leading backslash (\\S: like this); the backslash is dropped. Text that sits outside
+any card (for example a second paragraph after a blank line) is reported as a warning, not dropped
+silently.
+
 Everything is inlined, so the page makes no network requests and works offline.
 """
 from __future__ import annotations
@@ -25,6 +30,7 @@ import json
 import pathlib
 import re
 import sys
+from typing import Optional
 
 HERE = pathlib.Path(__file__).parent
 CARDS = HERE / "cards"
@@ -43,7 +49,7 @@ def card_id(deck_id: str, question: str) -> str:
     return hashlib.sha1(f"{deck_id}|{question}".encode()).hexdigest()[:10]
 
 
-def parse_deck(deck_id: str, text: str) -> dict:
+def parse_deck(deck_id: str, text: str, warnings: Optional[list] = None) -> dict:
     title, desc, cards = deck_id, "", []
     cur = None  # {"q": [...], "a": [...], "s": str|None, "x": [...], "in": "q"|"a"|"opt"}
 
@@ -67,6 +73,14 @@ def parse_deck(deck_id: str, text: str) -> dict:
         cur = None
 
     for n, line in enumerate(text.splitlines(), start=1):
+        if line.startswith("%%"):
+            continue  # comment
+        if line[:1] == "\\" and line[1:3] in ("Q:", "A:", "S:", "X:") and cur is not None:
+            # An escaped marker is plain text inside whatever part of the card is open.
+            if cur["in"] == "opt":
+                raise DeckError(f"{deck_id}: line {n}: text after S:/X: lines (start a new card with Q:)")
+            cur[cur["in"]].append(line[1:].rstrip())
+            continue
         if line.startswith("# ") and cur is None and not cards:
             title = line[2:].strip()
         elif line.startswith("> ") and cur is None and not cards:
@@ -89,7 +103,8 @@ def parse_deck(deck_id: str, text: str) -> dict:
             flush(n)
         elif cur is not None:
             cur[cur["in"]].append(line.rstrip())
-        # any other text outside a card is ignored (notes to self)
+        elif warnings is not None:
+            warnings.append(f"{deck_id}: line {n}: text outside a card was ignored: {line.strip()[:60]!r}")
     flush(len(text.splitlines()))
 
     seen = set()
@@ -100,11 +115,11 @@ def parse_deck(deck_id: str, text: str) -> dict:
     return {"id": deck_id, "title": title, "desc": desc, "cards": cards}
 
 
-def load_decks(directory: pathlib.Path = CARDS) -> list[dict]:
+def load_decks(directory: pathlib.Path = CARDS, warnings: Optional[list] = None) -> list[dict]:
     decks = []
     for path in sorted(directory.glob("*.md")):
         deck_id = re.sub(r"^\d+_", "", path.stem)
-        deck = parse_deck(deck_id, path.read_text())
+        deck = parse_deck(deck_id, path.read_text(encoding="utf-8"), warnings)
         if deck["cards"]:
             decks.append(deck)
     ids = [d["id"] for d in decks]
@@ -114,44 +129,66 @@ def load_decks(directory: pathlib.Path = CARDS) -> list[dict]:
 
 
 def json_for_script(obj) -> str:
-    # "</" would end the inline <script>; escape it. Also U+2028/9 break old JS parsers.
+    """JSON that is safe inside an inline <script>. Every "<" becomes \\u003c (valid JSON and JS), which
+    rules out "</script>" and also "<!--", which can switch the HTML parser into a state where the real
+    closing tag is ignored. U+2028/9 are escaped too because older JS parsers choke on them."""
     return (json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
-            .replace("</", "<\\/").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+            .replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+
+
+def fill_template(template: str, values: dict) -> str:
+    """Replace every __TOKEN__ in one pass, so substituted text is never itself searched for tokens."""
+    pattern = re.compile("|".join(re.escape(k) for k in values))
+    return pattern.sub(lambda m: values[m.group(0)], template)
+
+
+ICON_SIZES = (180, 192, 512)
+SHELL_FILES = ("index.html", "manifest.webmanifest", *(f"icons/icon-{n}.png" for n in ICON_SIZES))
 
 
 def main() -> None:
-    decks = load_decks()
+    warnings: list = []
+    decks = load_decks(warnings=warnings)
     if not decks:
         sys.exit("ERROR: no decks found in cards/")
 
-    template = (HERE / "template.html").read_text()
-    for token in ("__DATA__", "__SRS__", "__APP__"):
+    template = (HERE / "template.html").read_text(encoding="utf-8")
+    values = {
+        "__SRS__": (HERE / "srs.js").read_text(encoding="utf-8"),
+        "__APP__": (HERE / "app.js").read_text(encoding="utf-8"),
+        "__DATA__": json_for_script(decks),
+    }
+    for token in values:
         if token not in template:
             sys.exit(f"ERROR: template.html is missing {token}")
-    body = (template.replace("__SRS__", (HERE / "srs.js").read_text())
-            .replace("__APP__", (HERE / "app.js").read_text())
-            .replace("__DATA__", json_for_script(decks)))
+    page = fill_template(template, values)
 
     DOCS.mkdir(exist_ok=True)
     (DOCS / "icons").mkdir(exist_ok=True)
-    if not (DOCS / "icons" / "icon-512.png").exists():
+    if any(not (DOCS / "icons" / f"icon-{n}.png").exists() for n in ICON_SIZES):
         import make_icons
         make_icons.write_all(DOCS / "icons")
 
-    page = body
-    (DOCS / "index.html").write_text(page)
+    (DOCS / "index.html").write_text(page, encoding="utf-8")
+    # The same art is listed twice on purpose: "any" and "maskable" in one entry makes Android
+    # crop art that was not drawn for masking. This icon keeps its content inside the safe zone.
+    icons = [{"src": f"./icons/icon-{n}.png", "sizes": f"{n}x{n}", "type": "image/png", "purpose": purpose}
+             for n in (192, 512) for purpose in ("any", "maskable")]
     (DOCS / "manifest.webmanifest").write_text(json.dumps({
         "name": APP_NAME, "short_name": "Cards", "start_url": "./", "scope": "./",
         "display": "standalone", "orientation": "portrait",
-        "background_color": THEME, "theme_color": THEME,
-        "icons": [
-            {"src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-            {"src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
-        ],
-    }, indent=2))
-    version = hashlib.sha256(page.encode()).hexdigest()[:12]
-    (DOCS / "sw.js").write_text((HERE / "sw-template.js").read_text().replace("__CACHE_VERSION__", version))
+        "background_color": THEME, "theme_color": THEME, "icons": icons,
+    }, indent=2), encoding="utf-8")
+    version = hashlib.sha256(page.encode("utf-8")).hexdigest()[:12]
+    sw = (HERE / "sw-template.js").read_text(encoding="utf-8").replace("__CACHE_VERSION__", version)
+    (DOCS / "sw.js").write_text(sw, encoding="utf-8")
     (DOCS / ".nojekyll").write_text("")
+
+    # The service worker pre-caches these at install. If one is missing the worker never installs
+    # and the app silently loses offline support, so fail the build instead.
+    missing = [f for f in SHELL_FILES if not (DOCS / f).is_file()]
+    if missing:
+        sys.exit("ERROR: app shell files missing from docs/: " + ", ".join(missing))
 
     total = sum(len(d["cards"]) for d in decks)
     quiz = sum(1 for d in decks for c in d["cards"] if "x" in c)
@@ -159,7 +196,9 @@ def main() -> None:
     for d in decks:
         q = sum(1 for c in d["cards"] if "x" in c)
         print(f"  {d['id']:<16}{len(d['cards']):>4}  quiz {q:>3}")
-    print(f"page : docs/index.html ({(DOCS / 'index.html').stat().st_size / 1024:.0f} KB)   cache: cards-{version}")
+    print(f"page : docs/index.html ({(DOCS / 'index.html').stat().st_size / 1024:.0f} KB)   cache: secops-cards-{version}")
+    for w in warnings:
+        print("WARNING:", w, file=sys.stderr)
 
 
 if __name__ == "__main__":

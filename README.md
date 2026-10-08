@@ -28,9 +28,6 @@ should not stretch your recall intervals. Review counts from both modes add up f
 | data_lake_platform | Greenfield SIEM: medallion layers, pipelines, cost, UEBA, risk-based alerting, the AI layer |
 | ai_ir_automation | AI agents in IR: graduated autonomy, evals, shadow mode, prompt injection in logs |
 | ir_case_lead | Leading cases: roles, scoping, decision logs, exec updates, post-incident reviews |
-| data\_lake\_platform | Greenfield SIEM: medallion layers, pipelines, cost, UEBA, risk-based alerting, the AI layer |
-| ai\_ir\_automation | AI agents in IR: graduated autonomy, evals, shadow mode, prompt injection in logs |
-| ir\_case\_lead | Leading cases: roles, scoping, decision logs, exec updates, post-incident reviews |
 
 ## Add or edit cards
 
@@ -55,7 +52,12 @@ X: Noise events were filtered out
 ```
 
 Cards without `S:`/`X:` still work as flashcards and are skipped in Quiz mode. A blank line ends a
-card. Wrap code in `backticks`. A card's progress is keyed to its question
+card, so keep an answer's paragraphs together; text left outside any card is reported as a warning
+when you build. Wrap code in `backticks`.
+
+- `%% like this` is a comment line and is ignored.
+- An answer line that must begin with `Q:`, `A:`, `S:` or `X:` is written with a leading backslash
+  (`\S: like this`); the backslash is dropped. A card's progress is keyed to its question
 text, so rewording a question resets that one card. Then rebuild:
 
 ```bash
@@ -75,11 +77,18 @@ Space goes to the next question; `z` undoes and Esc leaves.
 
 Stored in the browser's localStorage on each device. It does not sync. Settings has Export and
 Import to move it between devices, and a backup is worth taking before clearing browser data.
+Import replaces everything on that device and checks the file first: a malformed backup is
+rejected, and individual records that don't make sense are skipped and counted. If the saved data
+on a device ever can't be read, the app starts fresh, says so, and keeps a copy of the unreadable
+data in the browser instead of overwriting it.
+
+Offline: the whole app is stored when it is first opened and served from that copy, so it opens
+instantly on a weak connection. A new version arrives the next time you open it with signal.
 
 ## Tests
 
 ```bash
-npm install && npm test   # scheduler (node:test), full UI in jsdom, deck parser (unittest)
+npm install && npm test   # scheduler, service worker, full UI in jsdom, deck parser/build (unittest)
 ```
 
 The facts in the decks are written from knowledge, not copied from sources. Technique IDs and

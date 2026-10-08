@@ -10,6 +10,15 @@ function page(html, opts) {
     beforeParse(w) {
       w.addEventListener("error", (e) => errors.push(e.message)); w.scrollTo = () => {}; w.confirm = () => true;
       if (opts.noStorage) Object.defineProperty(w, "localStorage", { get() { throw new Error("blocked"); } });
+      if (opts.preset) Object.keys(opts.preset).forEach((k) => w.localStorage.setItem(k, opts.preset[k]));
+      if (opts.clipboard !== undefined) Object.defineProperty(w.navigator, "clipboard", { value: opts.clipboard, configurable: true });
+      if (opts.clock) {   // a controllable clock: the app reads "now" through Date
+        const RealDate = w.Date;
+        w.Date = class extends RealDate {
+          constructor(...a) { if (a.length) super(...a); else super(opts.clock.t); }
+          static now() { return opts.clock.t; }
+        };
+      }
     } });
   const d = dom.window.document;
   return { w: dom.window, d, q: (s) => d.querySelector(s), text: () => d.getElementById("app").textContent, errors };
@@ -193,5 +202,78 @@ const p3 = new JSDOM(base, { runScripts: "dangerously", url: "http://localhost/"
 } });
 ok(p3.window.document.getElementById("app").textContent.includes("SecOps Cards") && !p3.window.document.getElementById("app").textContent.includes("undefined"), "progress saved before Quiz existed loads fine");
 
+(async () => {
+// ================= Review fixes =================
+const settleAsync = () => new Promise((r) => setTimeout(r, 10));
+const importBackup = (pg, text) => { btn(pg, "Open settings").click(); pg.q("textarea").value = text; btn(pg, "Import").click(); };
+const msgOf = (pg) => pg.q(".msg").textContent;
+
+// -- malformed backups are rejected and change nothing
+p = page(base);
+p.q("#all").click(); p.q("#show").click(); p.q(".g3").click(); btn(p, "← Back").click();
+const progressBefore = p.w.localStorage.getItem("secops-cards:v1");
+for (const [label, bad] of [["states:null", '{"states":null}'], ["states:[]", '{"states":[]}'], ["states:7", '{"states":7}'], ["array", "[]"], ["null", "null"]]) {
+  importBackup(p, bad);
+  ok(msgOf(p).includes("does not look like a backup") && p.w.localStorage.getItem("secops-cards:v1") === progressBefore && p.errors.length === 0,
+     "rejects " + label + " and leaves saved progress untouched");
+  btn(p, "← Back").click();
+}
+
+// -- sparse or hostile-but-object backups are repaired, not trusted
+p = page(base);
+importBackup(p, '{"states":{},"settings":{}}');
+btn(p, "← Back").click();
+ok(!p.text().includes("NaN") && p.text().includes("Study 15 cards"), "a backup without settings falls back to defaults (no NaN)");
+p = page(base);
+const mixed = { states: { good: { ease: 2.5, interval: 3, reps: 2, due: "2026-10-08", lapses: 0 },
+                          nullInterval: { ease: 2.5, interval: null, reps: 1, due: "2026-10-08" },
+                          strInterval: { ease: 2.5, interval: "3", reps: 1, due: "2026-10-08" },
+                          badDue: { ease: 2.5, interval: 1, reps: 1, due: "tomorrow" }, notObj: 5 },
+                settings: { newPerDay: 7, mode: "weird" }, days: { "2026-10-07": { n: 3, ok: 2, by: { terraform: 3, junk: "x" } }, nope: { n: 1 } } };
+importBackup(p, JSON.stringify(mixed));
+const cleaned = store(p);
+ok(Object.keys(cleaned.states).join() === "good" && /skipped 4 invalid/.test(msgOf(p)), "invalid card records are skipped and counted: " + msgOf(p));
+ok(cleaned.settings.mode === "flash" && cleaned.settings.newPerDay === 7, "unknown mode falls back to flashcards; valid setting kept");
+ok(JSON.stringify(cleaned.days) === '{"2026-10-07":{"n":3,"ok":2,"by":{"terraform":3}}}', "malformed day entries are dropped, numeric parts kept: " + JSON.stringify(cleaned.days));
+ok(p.q("input[type=number]").value === "7", "the settings field shows the imported value straight away");
+
+// -- import replaces everything on the device (no leftover quiz progress mixed in)
+p = page(base); btn(p, "Quiz").click(); p.q("#all").click();
+p.d.querySelectorAll(".opt")[correctIdx(p)].click();
+btn(p, "← Back").click();
+ok(Object.keys(store(p).quiz).length === 1, "setup: one quiz record exists");
+importBackup(p, JSON.stringify({ states: { a: { ease: 2.5, interval: 1, reps: 1, due: "2026-10-08", lapses: 0 } } }));
+ok(Object.keys(store(p).quiz).length === 0 && Object.keys(store(p).states).length === 1, "importing a backup without quiz data clears the old quiz progress");
+
+// -- clipboard: the message reflects what actually happened
+async function exportMsg(clipboard) {
+  const pg = page(base, { clipboard });
+  btn(pg, "Open settings").click(); btn(pg, "Export").click();
+  await settleAsync();
+  return msgOf(pg);
+}
+ok((await exportMsg({ writeText: () => Promise.resolve() })).includes("copied to clipboard"), "export says copied when the browser accepted the copy");
+ok((await exportMsg({ writeText: () => Promise.reject(new Error("denied")) })).includes("Could not copy"), "export does not claim success when the copy is rejected");
+ok((await exportMsg({ writeText: () => { throw new Error("sync"); } })).includes("Could not copy"), "export copes with writeText throwing");
+ok((await exportMsg(undefined)).includes("Could not copy"), "export copes with no clipboard API");
+
+// -- unreadable saved data: copy kept, user told, nothing silently destroyed
+p = page(base, { preset: { "secops-cards:v1": "{broken json" } });
+ok(p.text().includes("could not be read") && p.w.localStorage.getItem("secops-cards:v1:corrupt") === "{broken json", "corrupt saved data is preserved and the user is told");
+p.q("#all").click(); p.q("#show").click(); p.q(".g3").click();
+ok(p.w.localStorage.getItem("secops-cards:v1:corrupt") === "{broken json", "the preserved copy survives later saves");
+p = page(base, { preset: { "secops-cards:v1": "[1,2,3]" } });
+ok(p.text().includes("SecOps Cards") && !p.text().includes("NaN") && p.errors.length === 0, "a stored value of the wrong shape loads as empty progress without errors");
+
+// -- undo after the 3am rollover restores the day the review belonged to
+const clock = { t: new Date(2026, 9, 5, 2, 59).getTime() };      // 02:59 on Oct 5 still counts as Oct 4
+p = page(base, { clock });
+p.q("#all").click(); p.q("#show").click(); p.q(".g3").click();
+ok(store(p).days["2026-10-04"] && store(p).days["2026-10-04"].n === 1, "setup: review recorded under Oct 4");
+clock.t = new Date(2026, 9, 5, 3, 1).getTime();                  // rollover happens, now Oct 5
+p.q("#undo").click();
+ok(store(p).days["2026-10-04"].n === 0 && !("2026-10-05" in store(p).days), "undo after rollover fixes Oct 4 and does not invent an Oct 5 entry: " + JSON.stringify(store(p).days));
+
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");
 process.exitCode = failed ? 1 : 0;
+})();

@@ -1,6 +1,10 @@
 /* Service worker: lets the app open with no signal (e.g. on the train).
-   CACHE is stamped with a content hash at build time, so a rebuild invalidates the old cache. */
-const CACHE = "secops-cards-7d7b1bc3c31f";
+
+   The whole app shell is stored when the worker installs, in a cache named with a hash of the page.
+   A new build changes sw.js, the browser installs the new worker, and the old cache is deleted.
+   So pages are served from the cache first: no wait on a weak connection, and nothing fetched at
+   runtime can overwrite the known-good copy (a captive-portal page or an error response, say). */
+const CACHE = "secops-cards-6c7b28b177dd";
 
 const ASSETS = [
   "./",
@@ -26,17 +30,16 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
+  if (new URL(req.url).origin !== self.location.origin) return;
+
+  // Opening the app (including with a query string): the cached shell, network only if it is missing.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put("./index.html", copy));
-          return res;
-        })
-        .catch(() => caches.match("./index.html").then((r) => r || caches.match("./")))
+      caches.match("./index.html").then((hit) => hit || caches.match("./")).then((hit) => hit || fetch(req))
     );
     return;
   }
+
+  // Everything else (manifest, icons): cached copy, else the network. Responses are never stored here.
   event.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
 });
