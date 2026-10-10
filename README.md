@@ -1,5 +1,10 @@
 # SecOps Cards
 
+**Live: https://barnabys-drew.github.io/secops-cards/**
+
+Open it on your phone, then use *Add to Home Screen* (iPhone, Safari) or *Install app* (Android,
+Chrome). After the first load it works with no signal.
+
 Spaced-repetition flashcards for security engineering: AI/LLM security, MCP and agents, cloud
 incident response, Terraform, detection engineering, and Python for security work. One
 self-contained page that installs to a phone's home screen and works offline (a train, a plane).
