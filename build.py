@@ -57,7 +57,10 @@ class DeckError(ValueError):
 
 def card_id(deck_id: str, question: str) -> str:
     """Stable id from the question text. Editing a question resets that card's progress."""
-    return hashlib.sha1(f"{deck_id}|{question}".encode()).hexdigest()[:10]
+    # Identity hash, not a security control. sha1 is kept so existing card ids,
+    # and the progress stored against them, do not change.
+    digest = hashlib.sha1(f"{deck_id}|{question}".encode(), usedforsecurity=False)  # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1 -- non-security id
+    return digest.hexdigest()[:10]
 
 
 def parse_deck(deck_id: str, text: str, warnings: Optional[list] = None) -> dict:
